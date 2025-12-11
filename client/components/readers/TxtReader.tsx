@@ -7,7 +7,7 @@ import {
   Text,
   Platform,
 } from "react-native";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { ThemedText } from "@/components/ThemedText";
 import { BionicText } from "@/components/BionicText";
 
