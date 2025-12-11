@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from "react";
 import {
   View,
-  ScrollView,
   StyleSheet,
   Text,
   Platform,
@@ -21,6 +20,10 @@ import Animated, {
   useAnimatedReaction,
   Easing,
   withSpring,
+  useAnimatedRef,
+  scrollTo,
+  cancelAnimation,
+  useDerivedValue,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -93,13 +96,15 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   showTapHint = true,
 }, ref) => {
   const insets = useSafeAreaInsets();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const animatedScrollViewRef = useAnimatedRef<Animated.ScrollView>();
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isScrollingRef = useRef(false);
   const lastTapTimeRef = useRef(0);
   const measuredLinesRef = useRef<MeasuredLine[]>([]);
-  const autoScrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tapHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoScrollPosition = useSharedValue(0);
+  const isAutoScrollActive = useSharedValue(false);
+  const autoScrollMaxY = useSharedValue(0);
   
   const [contentHeight, setContentHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(SCREEN_HEIGHT);
@@ -150,8 +155,8 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [scrollMode, isReady, showTapHint, tapHintOpacity]);
 
   const updateScrollPosition = useCallback((y: number) => {
-    scrollViewRef.current?.scrollTo({ y, animated: false });
-  }, []);
+    scrollTo(animatedScrollViewRef, 0, y, false);
+  }, [animatedScrollViewRef]);
 
   const finishScrollAnimation = useCallback(() => {
     isAnimatingScrollShared.value = 0;
@@ -297,42 +302,66 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
   }, [findLastVisibleLineIndex, scrollToLineIndex, showTapHintOverlay, tapHintOpacity]);
 
-  const startAutoScroll = useCallback(() => {
-    if (autoScrollIntervalRef.current) return;
-    
-    const pixelsPerSecond = autoScrollSpeed;
-    const intervalMs = 16;
-    const pixelsPerInterval = pixelsPerSecond / (1000 / intervalMs);
-    
-    let currentY = currentScrollY;
-    
-    autoScrollIntervalRef.current = setInterval(() => {
-      const maxScroll = contentHeight - viewportHeight + paddingTop + paddingBottom;
-      currentY += pixelsPerInterval;
-      
-      if (currentY >= maxScroll) {
-        stopAutoScroll();
-        return;
+  const updateScrollYFromWorklet = useCallback((y: number) => {
+    setCurrentScrollY(y);
+    if (contentHeight > 0) {
+      const maxScroll = Math.max(1, contentHeight - viewportHeight + paddingTop + paddingBottom);
+      const progress = Math.min(1, Math.max(0, y / maxScroll));
+      onScrollProgress?.(progress, y, contentHeight);
+    }
+  }, [contentHeight, viewportHeight, paddingTop, paddingBottom, onScrollProgress]);
+
+  useAnimatedReaction(
+    () => ({ active: isAutoScrollActive.value, pos: autoScrollPosition.value }),
+    (current, previous) => {
+      if (current.active) {
+        scrollTo(animatedScrollViewRef, 0, current.pos, false);
+        if (!previous || Math.abs(current.pos - (previous.pos || 0)) > 5) {
+          runOnJS(updateScrollYFromWorklet)(current.pos);
+        }
       }
-      
-      scrollViewRef.current?.scrollTo({
-        y: currentY,
-        animated: false,
-      });
-    }, intervalMs);
+    },
+    [animatedScrollViewRef, updateScrollYFromWorklet]
+  );
+
+  const startAutoScroll = useCallback(() => {
+    if (isAutoScrollActive.value) return;
+    
+    const maxScroll = Math.max(0, contentHeight - viewportHeight + paddingTop + paddingBottom);
+    autoScrollMaxY.value = maxScroll;
+    autoScrollPosition.value = currentScrollY;
+    isAutoScrollActive.value = true;
+    
+    const remainingDistance = maxScroll - currentScrollY;
+    const duration = (remainingDistance / autoScrollSpeed) * 1000;
+    
+    autoScrollPosition.value = withTiming(
+      maxScroll,
+      { 
+        duration: Math.max(100, duration),
+        easing: Easing.linear 
+      },
+      (finished) => {
+        if (finished) {
+          isAutoScrollActive.value = false;
+          runOnJS(setIsAutoScrollPlaying)(false);
+          if (onAutoScrollStateChange) {
+            runOnJS(onAutoScrollStateChange)(false);
+          }
+        }
+      }
+    );
     
     setIsAutoScrollPlaying(true);
     onAutoScrollStateChange?.(true);
-  }, [autoScrollSpeed, currentScrollY, contentHeight, viewportHeight, paddingTop, paddingBottom, onAutoScrollStateChange]);
+  }, [autoScrollSpeed, currentScrollY, contentHeight, viewportHeight, paddingTop, paddingBottom, onAutoScrollStateChange, autoScrollPosition, autoScrollMaxY, isAutoScrollActive, animatedScrollViewRef]);
 
   const stopAutoScroll = useCallback(() => {
-    if (autoScrollIntervalRef.current) {
-      clearInterval(autoScrollIntervalRef.current);
-      autoScrollIntervalRef.current = null;
-    }
+    cancelAnimation(autoScrollPosition);
+    isAutoScrollActive.value = false;
     setIsAutoScrollPlaying(false);
     onAutoScrollStateChange?.(false);
-  }, [onAutoScrollStateChange]);
+  }, [onAutoScrollStateChange, autoScrollPosition, isAutoScrollActive]);
 
   const toggleAutoScroll = useCallback(() => {
     if (isAutoScrollPlaying) {
@@ -364,8 +393,8 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     const ratio = position / content.length;
     const targetY = ratio * contentHeight;
     
-    scrollViewRef.current?.scrollTo({ y: targetY, animated: false });
-  }, [contentHeight, content.length]);
+    scrollTo(animatedScrollViewRef, 0, targetY, false);
+  }, [contentHeight, content.length, animatedScrollViewRef]);
 
   const getCurrentPosition = useCallback((): number => {
     if (contentHeight <= 0 || content.length === 0) return 0;
@@ -423,7 +452,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       const ratio = initialPosition / content.length;
       const targetY = ratio * contentHeight;
       setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ y: targetY, animated: false });
+        scrollTo(animatedScrollViewRef, 0, targetY, false);
       }, 150);
     }
   }, [initialPosition, contentHeight, content.length, isReady]);
@@ -433,9 +462,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       if (highlightTimeoutRef.current) {
         clearTimeout(highlightTimeoutRef.current);
       }
-      if (autoScrollIntervalRef.current) {
-        clearInterval(autoScrollIntervalRef.current);
-      }
+      cancelAnimation(autoScrollPosition);
       if (scrollAnimationTimeoutRef.current) {
         clearTimeout(scrollAnimationTimeoutRef.current);
       }
@@ -443,7 +470,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
         clearTimeout(tapHintTimeoutRef.current);
       }
     };
-  }, []);
+  }, [autoScrollPosition]);
 
   useEffect(() => {
     if (scrollMode !== "autoScroll" && isAutoScrollPlaying) {
@@ -566,8 +593,8 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
 
   const containerContent = (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]} onLayout={handleViewportLayout}>
-      <ScrollView
-        ref={scrollViewRef}
+      <Animated.ScrollView
+        ref={animatedScrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={[
           styles.contentContainer,
@@ -600,7 +627,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
             )}
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {(scrollMode === "tapScroll" || scrollMode === "autoScroll") && (
         <View style={styles.tapZonesContainer} pointerEvents="box-none">

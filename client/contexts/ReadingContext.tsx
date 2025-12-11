@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
+import { AppState, AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ReadingDefaults, ThemeMode, AvailableFonts, ReadingMode, ReadingModes, ScrollMode, TapScrollLinePositionType, AutoScrollDefaults, TapScrollDefaults } from "@/constants/theme";
 
@@ -170,9 +171,29 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
   const [stats, setStats] = useState<ReadingStats>(defaultStats);
   const [isLoading, setIsLoading] = useState(true);
   const [activeSession, setActiveSession] = useState<{ bookId: string; startTime: number } | null>(null);
+  const settingsSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSettingsRef = useRef<ReadingSettings | null>(null);
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        if (pendingSettingsRef.current) {
+          if (settingsSaveTimeoutRef.current) {
+            clearTimeout(settingsSaveTimeoutRef.current);
+            settingsSaveTimeoutRef.current = null;
+          }
+          saveSettings(pendingSettingsRef.current);
+          pendingSettingsRef.current = null;
+        }
+      }
+    };
+    
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
   }, []);
 
   useEffect(() => {
@@ -422,11 +443,26 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
     return JSON.stringify(exportedData, null, 2);
   };
 
-  const updateSettings = async (newSettings: Partial<ReadingSettings>) => {
-    const updated = { ...settings, ...newSettings };
-    setSettings(updated);
-    await saveSettings(updated);
-  };
+  const updateSettings = useCallback((newSettings: Partial<ReadingSettings>): Promise<void> => {
+    setSettings(prev => {
+      const updated = { ...prev, ...newSettings };
+      pendingSettingsRef.current = updated;
+      return updated;
+    });
+    
+    if (settingsSaveTimeoutRef.current) {
+      clearTimeout(settingsSaveTimeoutRef.current);
+    }
+    
+    settingsSaveTimeoutRef.current = setTimeout(() => {
+      if (pendingSettingsRef.current) {
+        saveSettings(pendingSettingsRef.current);
+        pendingSettingsRef.current = null;
+      }
+    }, 300);
+    
+    return Promise.resolve();
+  }, []);
 
   const startReadingSession = (bookId: string) => {
     setActiveSession({ bookId, startTime: Date.now() });
