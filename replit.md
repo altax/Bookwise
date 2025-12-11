@@ -118,6 +118,19 @@ server/
 4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
+- December 2024: **In-Reader Settings Panel**:
+  - Tap center of screen during reading to open settings
+  - Adjust font size, line spacing, themes, scroll modes in real-time
+  - Container padding controls (top/bottom) for personalized boundaries
+  - Toggle bionic reading and focus mode without leaving the book
+- December 2024: **Tap Scroll Improvements**:
+  - Manual scrolling disabled in tap scroll mode for distraction-free reading
+  - Tap right side (50% of screen) to advance - last line scrolls to top
+  - Visual hint overlay appears when entering tap scroll mode
+  - Configurable animation speed (100-1000ms)
+- December 2024: **Reading Timer Visibility**:
+  - Shows reading time when enabled outside focus mode
+  - Hidden in focus mode for minimal UI
 - December 2024: v2.0 Premium redesign
 - December 2024: Added 6 premium themes with glassmorphism
 - December 2024: Implemented Bionic Reading mode
