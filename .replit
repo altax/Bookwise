@@ -43,6 +43,7 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run all:dev"
-waitForPort = 8081
-ensurePreviewReachable = "/status"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
