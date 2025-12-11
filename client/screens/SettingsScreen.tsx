@@ -141,7 +141,9 @@ export default function SettingsScreen() {
   const totalBookmarks = books.reduce((acc, book) => acc + book.bookmarks.length, 0);
   const totalNotes = books.reduce((acc, book) => acc + book.notes.length, 0);
   const totalReadingMinutes = Math.round(stats.totalReadingTime / 60);
-  const dailyGoalProgress = Math.min(100, (stats.todayReadingTime / 60 / settings.dailyGoal) * 100);
+  const dailyGoalProgress = settings.dailyGoal > 0 
+    ? Math.min(100, (stats.todayReadingTime / 60 / settings.dailyGoal) * 100) 
+    : 0;
 
   return (
     <ThemedView style={styles.container}>
@@ -368,7 +370,7 @@ export default function SettingsScreen() {
                 <View>
                   <ThemedText style={styles.settingLabel}>Focus Mode</ThemedText>
                   <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                    Minimal UI with reading timer
+                    Zen mode with minimal UI and timer
                   </ThemedText>
                 </View>
               </View>
@@ -379,6 +381,14 @@ export default function SettingsScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
+            {settings.focusMode && (
+              <View style={[styles.focusHint, { backgroundColor: theme.backgroundSecondary }]}>
+                <Feather name="coffee" size={14} color={theme.accent} />
+                <ThemedText style={[styles.focusHintText, { color: theme.secondaryText }]}>
+                  Break reminder every 25 min (Pomodoro)
+                </ThemedText>
+              </View>
+            )}
           </View>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
@@ -399,6 +409,82 @@ export default function SettingsScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLabelRow}>
+                <Feather name="play" size={20} color={theme.text} />
+                <View>
+                  <ThemedText style={styles.settingLabel}>Animations</ThemedText>
+                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                    Smooth page transitions
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={settings.animationsEnabled}
+                onValueChange={(value) => handleToggle("animationsEnabled", value)}
+                trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLabelRow}>
+                <Feather name="align-left" size={20} color={theme.text} />
+                <View>
+                  <ThemedText style={styles.settingLabel}>Text Alignment</ThemedText>
+                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                    {settings.textAlignment === "left" ? "Left aligned" : "Justified"}
+                  </ThemedText>
+                </View>
+              </View>
+              <Pressable
+                style={[styles.alignmentToggle, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={() => {
+                  if (settings.hapticFeedback) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  updateSettings({ textAlignment: settings.textAlignment === "left" ? "justify" : "left" });
+                }}
+              >
+                <ThemedText style={styles.alignmentToggleText}>
+                  {settings.textAlignment === "left" ? "Left" : "Justify"}
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>
+            Goals
+          </ThemedText>
+
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingRow}>
+              <ThemedText>Daily Reading Goal</ThemedText>
+              <ThemedText style={{ color: theme.accent, fontWeight: "600" }}>
+                {settings.dailyGoal} min
+              </ThemedText>
+            </View>
+            <Slider
+              style={styles.slider}
+              minimumValue={5}
+              maximumValue={120}
+              step={5}
+              value={settings.dailyGoal}
+              onValueChange={(value) => updateSettings({ dailyGoal: value })}
+              minimumTrackTintColor={theme.accent}
+              maximumTrackTintColor={theme.backgroundTertiary}
+              thumbTintColor={theme.accent}
+            />
+            <ThemedText style={[styles.settingHint, { color: theme.secondaryText, marginTop: Spacing.sm }]}>
+              Set your daily reading time target
+            </ThemedText>
           </View>
         </View>
 
@@ -498,6 +584,24 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.statItem}>
                 <ThemedText type="h3" style={{ color: theme.accent }}>
+                  {stats.averageReadingSpeed}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                  WPM
+                </ThemedText>
+              </View>
+              <View style={styles.statItem}>
+                <ThemedText type="h3" style={{ color: theme.accent }}>
+                  {stats.longestStreak}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                  Best Streak
+                </ThemedText>
+              </View>
+            </View>
+            <View style={[styles.statsGrid, { marginTop: Spacing.lg }]}>
+              <View style={styles.statItem}>
+                <ThemedText type="h3" style={{ color: theme.accent }}>
                   {totalBookmarks}
                 </ThemedText>
                 <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
@@ -510,6 +614,14 @@ export default function SettingsScreen() {
                 </ThemedText>
                 <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
                   Notes
+                </ThemedText>
+              </View>
+              <View style={styles.statItem}>
+                <ThemedText type="h3" style={{ color: theme.accent }}>
+                  {stats.totalPagesRead}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                  Pages Read
                 </ThemedText>
               </View>
             </View>
@@ -733,5 +845,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  alignmentToggle: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  alignmentToggleText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  focusHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  focusHintText: {
+    fontSize: 12,
   },
 });

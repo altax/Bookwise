@@ -32,6 +32,7 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { BookCard } from "@/components/BookCard";
+import { ProgressRing } from "@/components/ProgressRing";
 import { useReading, Book } from "@/contexts/ReadingContext";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -124,8 +125,12 @@ export default function LibraryScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
   const navigation = useNavigation<NavigationProp>();
-  const { books, addBook, removeBook, setCurrentBook, isLoading } = useReading();
+  const { books, addBook, removeBook, setCurrentBook, isLoading, stats, settings } = useReading();
   const [isImporting, setIsImporting] = useState(false);
+
+  const dailyGoalProgress = settings.dailyGoal > 0 
+    ? Math.min(100, (stats.todayReadingTime / 60 / settings.dailyGoal) * 100) 
+    : 0;
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState<"recent" | "title" | "date">("recent");
 
@@ -248,50 +253,96 @@ export default function LibraryScreen() {
     [viewMode, theme]
   );
 
-  const renderHeader = () => (
-    <View style={styles.listHeader}>
-      <View style={styles.sortToggle}>
-        <Pressable
-          style={[styles.toggleButton, { backgroundColor: theme.backgroundSecondary }]}
-          onPress={cycleSortBy}
-        >
-          <Feather
-            name={sortBy === "title" ? "type" : sortBy === "date" ? "calendar" : "clock"}
-            size={16}
-            color={theme.text}
-          />
-          <ThemedText style={styles.toggleText}>
-            {sortBy === "title" ? "A-Z" : sortBy === "date" ? "Added" : "Recent"}
-          </ThemedText>
-        </Pressable>
+  const renderStatsCard = () => (
+    <View style={[styles.statsCard, { backgroundColor: theme.backgroundDefault }]}>
+      <View style={styles.statsCardContent}>
+        <ProgressRing 
+          progress={dailyGoalProgress} 
+          size={56}
+          strokeWidth={5}
+        />
+        <View style={styles.statsCardInfo}>
+          <View style={styles.statsRow}>
+            <View style={styles.statBadge}>
+              <Feather name="zap" size={14} color={theme.accent} />
+              <ThemedText style={[styles.statValue, { color: theme.accent }]}>
+                {stats.currentStreak}
+              </ThemedText>
+              <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                streak
+              </ThemedText>
+            </View>
+            <View style={styles.statBadge}>
+              <Feather name="clock" size={14} color={theme.text} />
+              <ThemedText style={[styles.statValue, { color: theme.text }]}>
+                {Math.round(stats.todayReadingTime / 60)}
+              </ThemedText>
+              <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                min today
+              </ThemedText>
+            </View>
+            <View style={styles.statBadge}>
+              <Feather name="activity" size={14} color={theme.text} />
+              <ThemedText style={[styles.statValue, { color: theme.text }]}>
+                {stats.averageReadingSpeed}
+              </ThemedText>
+              <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                WPM
+              </ThemedText>
+            </View>
+          </View>
+        </View>
       </View>
-      <View style={styles.viewToggle}>
-        <Pressable
-          style={[
-            styles.viewButton,
-            viewMode === "grid" && { backgroundColor: theme.accent + "20" },
-          ]}
-          onPress={() => setViewMode("grid")}
-        >
-          <Feather
-            name="grid"
-            size={18}
-            color={viewMode === "grid" ? theme.accent : theme.secondaryText}
-          />
-        </Pressable>
-        <Pressable
-          style={[
-            styles.viewButton,
-            viewMode === "list" && { backgroundColor: theme.accent + "20" },
-          ]}
-          onPress={() => setViewMode("list")}
-        >
-          <Feather
-            name="list"
-            size={18}
-            color={viewMode === "list" ? theme.accent : theme.secondaryText}
-          />
-        </Pressable>
+    </View>
+  );
+
+  const renderHeader = () => (
+    <View style={styles.listHeaderContainer}>
+      {renderStatsCard()}
+      <View style={styles.listHeader}>
+        <View style={styles.sortToggle}>
+          <Pressable
+            style={[styles.toggleButton, { backgroundColor: theme.backgroundSecondary }]}
+            onPress={cycleSortBy}
+          >
+            <Feather
+              name={sortBy === "title" ? "type" : sortBy === "date" ? "calendar" : "clock"}
+              size={16}
+              color={theme.text}
+            />
+            <ThemedText style={styles.toggleText}>
+              {sortBy === "title" ? "A-Z" : sortBy === "date" ? "Added" : "Recent"}
+            </ThemedText>
+          </Pressable>
+        </View>
+        <View style={styles.viewToggle}>
+          <Pressable
+            style={[
+              styles.viewButton,
+              viewMode === "grid" && { backgroundColor: theme.accent + "20" },
+            ]}
+            onPress={() => setViewMode("grid")}
+          >
+            <Feather
+              name="grid"
+              size={18}
+              color={viewMode === "grid" ? theme.accent : theme.secondaryText}
+            />
+          </Pressable>
+          <Pressable
+            style={[
+              styles.viewButton,
+              viewMode === "list" && { backgroundColor: theme.accent + "20" },
+            ]}
+            onPress={() => setViewMode("list")}
+          >
+            <Feather
+              name="list"
+              size={18}
+              color={viewMode === "list" ? theme.accent : theme.secondaryText}
+            />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -387,6 +438,36 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: Spacing.lg,
     gap: Spacing.lg,
+  },
+  listHeaderContainer: {
+    gap: Spacing.lg,
+  },
+  statsCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+  },
+  statsCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.lg,
+  },
+  statsCardInfo: {
+    flex: 1,
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  statBadge: {
+    alignItems: "center",
+    gap: 2,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  statLabel: {
+    fontSize: 11,
   },
   listHeader: {
     flexDirection: "row",
