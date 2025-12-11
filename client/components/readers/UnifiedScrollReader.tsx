@@ -15,7 +15,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSequence,
   runOnJS,
   useAnimatedReaction,
   Easing,
@@ -23,6 +22,7 @@ import Animated, {
   scrollTo,
   cancelAnimation,
   interpolate,
+  Extrapolation,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -80,6 +80,96 @@ interface MeasuredLine {
   xHeight: number;
 }
 
+interface KaraokeLineProps {
+  line: MeasuredLine;
+  index: number;
+  karaokeAnimatedLine: { value: number };
+  currentLineIndex: number;
+  screenCenter: number;
+  lineHeight: number;
+  theme: { text: string };
+  textStyle: object;
+  fontSize: number;
+  bionicReading: boolean;
+  renderBionicWord: (word: string, key: string | number) => React.ReactNode;
+}
+
+const KaraokeLine = React.memo(({
+  line,
+  index,
+  karaokeAnimatedLine,
+  currentLineIndex,
+  screenCenter,
+  lineHeight,
+  theme,
+  textStyle,
+  fontSize,
+  bionicReading,
+  renderBionicWord,
+}: KaraokeLineProps) => {
+  const animatedStyle = useAnimatedStyle(() => {
+    const currentLine = karaokeAnimatedLine.value;
+    const distance = index - currentLine;
+    
+    const yPosition = screenCenter - lineHeight / 2 + (distance * lineHeight * 1.3);
+    
+    let opacity: number;
+    let scale: number;
+    
+    if (Math.abs(distance) < 0.1) {
+      opacity = 1;
+      scale = 1;
+    } else if (distance < 0) {
+      const fadeDistance = Math.abs(distance);
+      opacity = interpolate(
+        fadeDistance,
+        [0, 1, 5],
+        [1, KaraokeDefaults.readOpacity, 0.05],
+        Extrapolation.CLAMP
+      );
+      scale = interpolate(fadeDistance, [0, 1, 3], [1, 0.92, 0.88], Extrapolation.CLAMP);
+    } else {
+      opacity = interpolate(
+        distance,
+        [0, 1, 5],
+        [1, KaraokeDefaults.upcomingOpacity, 0.1],
+        Extrapolation.CLAMP
+      );
+      scale = interpolate(distance, [0, 1, 3], [1, 0.95, 0.9], Extrapolation.CLAMP);
+    }
+    
+    return {
+      top: yPosition,
+      opacity,
+      transform: [{ scale }],
+    };
+  }, [index, screenCenter, lineHeight]);
+
+  const isCurrent = index === currentLineIndex;
+
+  return (
+    <Animated.View style={[styles.karaokeLineAbsolute, animatedStyle]}>
+      <Text
+        style={[
+          styles.content,
+          textStyle,
+          {
+            fontWeight: isCurrent ? '700' : '400',
+            fontSize,
+            textAlign: 'center',
+            color: theme.text,
+          },
+        ]}
+        numberOfLines={1}
+      >
+        {bionicReading 
+          ? line.text.split(/(\s+)/).map((part, i) => renderBionicWord(part, i))
+          : line.text.trim()}
+      </Text>
+    </Animated.View>
+  );
+});
+
 export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScrollReaderProps>(({
   content,
   scrollMode,
@@ -90,7 +180,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   initialPosition = 0,
   onAutoScrollStateChange,
   progressBarHeight = 0,
-  pauseAutoScroll: externalPauseAutoScroll,
 }, ref) => {
   const insets = useSafeAreaInsets();
   const animatedScrollViewRef = useAnimatedRef<Animated.ScrollView>();
@@ -121,7 +210,8 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const hasUserStartedReadingRef = useRef(false);
   
   const [karaokeCurrentLine, setKaraokeCurrentLine] = useState(0);
-  const karaokeLineOffset = useSharedValue(0);
+  const [nonEmptyLines, setNonEmptyLines] = useState<MeasuredLine[]>([]);
+  const karaokeAnimatedLine = useSharedValue(0);
   
   const highlightOpacity = useSharedValue(0);
   const animatedScrollY = useSharedValue(0);
@@ -180,7 +270,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const handleTextLayout = useCallback((event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const { lines } = event.nativeEvent;
     if (lines && lines.length > 0) {
-      measuredLinesRef.current = lines.map(line => ({
+      const allLines = lines.map(line => ({
         text: line.text,
         x: line.x,
         y: line.y,
@@ -191,6 +281,9 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
         capHeight: line.capHeight,
         xHeight: line.xHeight,
       }));
+      measuredLinesRef.current = allLines;
+      const filtered = allLines.filter(line => line.text.trim().length > 0);
+      setNonEmptyLines(filtered);
       setIsReady(true);
     }
   }, []);
@@ -281,11 +374,14 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [contentHeight, content.length, animatedScrollViewRef]);
 
   const getCurrentPosition = useCallback((): number => {
+    if (scrollMode === "karaoke") {
+      return karaokeCurrentLine;
+    }
     if (contentHeight <= 0 || content.length === 0) return 0;
     const maxScroll = Math.max(contentHeight - viewportHeight + paddingTop + paddingBottom, 1);
     const ratio = currentScrollY / maxScroll;
     return Math.floor(Math.min(1, Math.max(0, ratio)) * content.length);
-  }, [currentScrollY, contentHeight, content.length, viewportHeight, paddingTop, paddingBottom]);
+  }, [scrollMode, karaokeCurrentLine, currentScrollY, contentHeight, content.length, viewportHeight, paddingTop, paddingBottom]);
 
   useImperativeHandle(ref, () => ({
     scrollToPosition,
@@ -325,16 +421,13 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [scrollMode, isReady, contentHeight]);
 
   useEffect(() => {
-    if (scrollMode === "karaoke" && isReady && contentHeight > 0) {
+    if (scrollMode === "karaoke" && isReady) {
       setKaraokeCurrentLine(0);
-      karaokeLineOffset.value = 0;
+      karaokeAnimatedLine.value = 0;
     }
-  }, [scrollMode, isReady, contentHeight]);
+  }, [scrollMode, isReady]);
 
   const handleKaraokeAdvance = useCallback(() => {
-    const lines = measuredLinesRef.current;
-    const nonEmptyLines = lines.filter(line => line.text.trim().length > 0);
-    
     if (nonEmptyLines.length === 0) return;
     
     if (karaokeCurrentLine >= nonEmptyLines.length - 1) {
@@ -344,17 +437,16 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     const nextLine = karaokeCurrentLine + 1;
     setKaraokeCurrentLine(nextLine);
     
-    karaokeLineOffset.value = withTiming(nextLine, {
+    karaokeAnimatedLine.value = withTiming(nextLine, {
       duration: KaraokeDefaults.animationDuration,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
     });
 
-    const totalLines = nonEmptyLines.length;
-    if (totalLines > 0) {
-      const progress = nextLine / (totalLines - 1);
-      onScrollProgress?.(Math.min(1, progress), nextLine, totalLines);
+    if (nonEmptyLines.length > 0) {
+      const progress = nextLine / (nonEmptyLines.length - 1);
+      onScrollProgress?.(Math.min(1, progress), nextLine, nonEmptyLines.length);
     }
-  }, [karaokeCurrentLine, karaokeLineOffset, onScrollProgress]);
+  }, [karaokeCurrentLine, nonEmptyLines, karaokeAnimatedLine, onScrollProgress]);
 
   const handleKaraokeBack = useCallback(() => {
     if (karaokeCurrentLine <= 0) return;
@@ -362,19 +454,16 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     const prevLine = karaokeCurrentLine - 1;
     setKaraokeCurrentLine(prevLine);
     
-    karaokeLineOffset.value = withTiming(prevLine, {
+    karaokeAnimatedLine.value = withTiming(prevLine, {
       duration: KaraokeDefaults.animationDuration,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
     });
 
-    const lines = measuredLinesRef.current;
-    const nonEmptyLines = lines.filter(line => line.text.trim().length > 0);
-    const totalLines = nonEmptyLines.length;
-    if (totalLines > 0) {
-      const progress = prevLine / (totalLines - 1);
-      onScrollProgress?.(Math.min(1, progress), prevLine, totalLines);
+    if (nonEmptyLines.length > 0) {
+      const progress = prevLine / (nonEmptyLines.length - 1);
+      onScrollProgress?.(Math.min(1, progress), prevLine, nonEmptyLines.length);
     }
-  }, [karaokeCurrentLine, karaokeLineOffset, onScrollProgress]);
+  }, [karaokeCurrentLine, nonEmptyLines, karaokeAnimatedLine, onScrollProgress]);
 
   const handleStartReading = useCallback(() => {
     hasUserStartedReadingRef.current = true;
@@ -440,7 +529,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     opacity: highlightOpacity.value,
   }));
 
-  const renderBionicWord = (word: string, key: string | number) => {
+  const renderBionicWord = useCallback((word: string, key: string | number) => {
     if (/^\s+$/.test(word)) {
       return <Text key={key}>{word}</Text>;
     }
@@ -453,108 +542,63 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
         {normalPart}
       </Text>
     );
-  };
+  }, []);
 
   const highlightColor = theme.highlightColor || 'rgba(255, 215, 0, 0.45)';
 
   const isKaraoke = scrollMode === "karaoke";
+  const screenCenter = viewportHeight / 2;
 
-  const renderKaraokeContent = () => {
-    const lines = measuredLinesRef.current;
-    const nonEmptyLines = lines.filter(line => line.text.trim().length > 0);
-    
-    if (nonEmptyLines.length === 0 || !isReady) {
-      return (
-        <View>
+  const renderKaraokeView = () => {
+    return (
+      <View style={[styles.karaokeFullScreen, { backgroundColor: theme.backgroundRoot }]}>
+        <View style={styles.measurementContainer}>
           <Text 
-            style={[styles.content, textStyle, { position: 'absolute', opacity: 0 }]} 
+            style={[
+              styles.content, 
+              textStyle, 
+              { 
+                opacity: 0,
+                paddingHorizontal: 24,
+              }
+            ]} 
             onTextLayout={handleTextLayout}
           >
             {content}
           </Text>
-          <Text style={[styles.content, textStyle, { opacity: 0.3 }]}>
-            {content}
-          </Text>
         </View>
-      );
-    }
-
-    const screenCenter = viewportHeight / 2;
-    const currentLineHeight = lineHeight;
-
-    return (
-      <View style={styles.karaokeContainer}>
-        <Text 
-          style={[styles.content, textStyle, { position: 'absolute', opacity: 0 }]} 
-          onTextLayout={handleTextLayout}
-        >
-          {content}
-        </Text>
         
-        {nonEmptyLines.map((line, index) => {
-          const distanceFromCurrent = index - karaokeCurrentLine;
-          
-          let opacity = 1;
-          let scale = 1;
-          let fontWeight: "400" | "700" = "400";
-          
-          if (distanceFromCurrent === 0) {
-            opacity = 1;
-            scale = 1;
-            fontWeight = "700";
-          } else if (distanceFromCurrent < 0) {
-            const fadeDistance = Math.abs(distanceFromCurrent);
-            opacity = Math.max(KaraokeDefaults.readOpacity, 0.4 - fadeDistance * 0.08);
-            scale = 0.92;
-          } else {
-            const fadeDistance = distanceFromCurrent;
-            opacity = Math.max(KaraokeDefaults.upcomingOpacity, 0.5 - fadeDistance * 0.06);
-            scale = 0.95;
-          }
-
-          const yOffset = (index - karaokeCurrentLine) * currentLineHeight;
-          const translateY = screenCenter - currentLineHeight / 2 + yOffset - paddingTop;
-
-          return (
-            <Animated.View
+        <View style={styles.karaokeContent}>
+          {nonEmptyLines.length > 0 && nonEmptyLines.map((line, index) => (
+            <KaraokeLine
               key={index}
-              style={[
-                styles.karaokeLine,
-                {
-                  transform: [
-                    { translateY },
-                    { scale },
-                  ],
-                  opacity,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.content,
-                  textStyle,
-                  {
-                    fontWeight,
-                    textAlign: 'center',
-                  },
-                ]}
-              >
-                {settings.bionicReading 
-                  ? line.text.split(/(\s+)/).map((part, i) => renderBionicWord(part, i))
-                  : line.text}
-              </Text>
-            </Animated.View>
-          );
-        })}
+              line={line}
+              index={index}
+              karaokeAnimatedLine={karaokeAnimatedLine}
+              currentLineIndex={karaokeCurrentLine}
+              screenCenter={screenCenter}
+              lineHeight={lineHeight}
+              theme={theme}
+              textStyle={textStyle}
+              fontSize={settings.fontSize}
+              bionicReading={settings.bionicReading}
+              renderBionicWord={renderBionicWord}
+            />
+          ))}
+        </View>
+        
+        {nonEmptyLines.length === 0 && !isReady && (
+          <View style={[styles.karaokeLine, { top: screenCenter - lineHeight / 2 }]}>
+            <Text style={[styles.content, textStyle, { textAlign: 'center', opacity: 0.5 }]}>
+              Loading...
+            </Text>
+          </View>
+        )}
       </View>
     );
   };
 
   const renderContent = () => {
-    if (isKaraoke) {
-      return renderKaraokeContent();
-    }
-    
     return (
       <View>
         <Text 
@@ -578,10 +622,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
 
   const scrollViewProps = scrollMode === "autoScroll" ? {
     scrollEnabled: !isAutoScrollPlaying,
-    showsVerticalScrollIndicator: false,
-    decelerationRate: "normal" as const,
-  } : scrollMode === "karaoke" ? {
-    scrollEnabled: false,
     showsVerticalScrollIndicator: false,
     decelerationRate: "normal" as const,
   } : {
@@ -608,66 +648,11 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
 
   const isSeamless = scrollMode === "seamless";
 
-  const nonEmptyLinesCount = useMemo(() => {
-    return measuredLinesRef.current.filter(line => line.text.trim().length > 0).length;
-  }, [isReady]);
-
-  const containerContent = (
-    <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]} onLayout={handleViewportLayout}>
-      {isKaraoke ? (
-        <View style={styles.karaokeWrapper}>
-          {renderKaraokeContent()}
-        </View>
-      ) : (
-        <Animated.ScrollView
-          ref={animatedScrollViewRef}
-          style={styles.scrollView}
-          contentContainerStyle={[
-            styles.contentContainer,
-            {
-              paddingHorizontal: settings.marginHorizontal,
-              paddingTop: paddingTop,
-              paddingBottom: paddingBottom,
-            },
-          ]}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          {...scrollViewProps}
-        >
-          <View style={styles.textWrapper}>
-            <View onLayout={handleContentLayout} pointerEvents="none">
-              {renderContent()}
-              
-              {highlightedLineY !== null && (
-                <Animated.View
-                  style={[
-                    styles.lineHighlight,
-                    {
-                      top: highlightedLineY - 2,
-                      height: highlightedLineHeight + 4,
-                      backgroundColor: highlightColor,
-                    },
-                    highlightAnimatedStyle,
-                  ]}
-                />
-              )}
-            </View>
-          </View>
-        </Animated.ScrollView>
-      )}
-
-      {scrollMode === "autoScroll" && (
-        <View style={styles.tapZonesContainer} pointerEvents="box-none">
-          <Pressable 
-            style={[styles.tapZone, { width: leftZoneWidth }]} 
-            onPress={handleLeftTap}
-          />
-          <View style={[styles.tapZone, { width: centerZoneWidth }]} />
-          <View style={[styles.tapZone, { width: rightZoneWidth }]} />
-        </View>
-      )}
-
-      {isKaraoke && (
+  if (isKaraoke) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]} onLayout={handleViewportLayout}>
+        {renderKaraokeView()}
+        
         <View style={styles.tapZonesContainer} pointerEvents="box-none">
           <Pressable 
             style={[styles.tapZone, { width: screenWidth * 0.25 }]} 
@@ -678,16 +663,65 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
             onPress={handleKaraokeAdvance}
           />
         </View>
-      )}
 
-      {isKaraoke && (
         <View style={styles.karaokeIndicator}>
           <View style={[styles.karaokeBadge, { backgroundColor: theme.backgroundRoot + 'E6' }]}>
             <Feather name="mic" size={12} color={theme.text} />
             <Text style={[styles.karaokeText, { color: theme.text }]}>
-              {karaokeCurrentLine + 1}/{nonEmptyLinesCount || '?'}
+              {karaokeCurrentLine + 1}/{nonEmptyLines.length || '?'}
             </Text>
           </View>
+        </View>
+      </View>
+    );
+  }
+
+  const containerContent = (
+    <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]} onLayout={handleViewportLayout}>
+      <Animated.ScrollView
+        ref={animatedScrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.contentContainer,
+          {
+            paddingHorizontal: settings.marginHorizontal,
+            paddingTop: paddingTop,
+            paddingBottom: paddingBottom,
+          },
+        ]}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        {...scrollViewProps}
+      >
+        <View style={styles.textWrapper}>
+          <View onLayout={handleContentLayout} pointerEvents="none">
+            {renderContent()}
+            
+            {highlightedLineY !== null && (
+              <Animated.View
+                style={[
+                  styles.lineHighlight,
+                  {
+                    top: highlightedLineY - 2,
+                    height: highlightedLineHeight + 4,
+                    backgroundColor: highlightColor,
+                  },
+                  highlightAnimatedStyle,
+                ]}
+              />
+            )}
+          </View>
+        </View>
+      </Animated.ScrollView>
+
+      {scrollMode === "autoScroll" && (
+        <View style={styles.tapZonesContainer} pointerEvents="box-none">
+          <Pressable 
+            style={[styles.tapZone, { width: leftZoneWidth }]} 
+            onPress={handleLeftTap}
+          />
+          <View style={[styles.tapZone, { width: centerZoneWidth }]} />
+          <View style={[styles.tapZone, { width: rightZoneWidth }]} />
         </View>
       )}
 
@@ -857,20 +891,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "500",
   },
-  karaokeContainer: {
+  karaokeFullScreen: {
     flex: 1,
     position: 'relative',
     overflow: 'hidden',
   },
-  karaokeWrapper: {
+  measurementContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    opacity: 0,
+    pointerEvents: 'none',
+  },
+  karaokeContent: {
     flex: 1,
-    overflow: 'hidden',
+    position: 'relative',
   },
   karaokeLine: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    paddingHorizontal: 24,
+    left: 24,
+    right: 24,
+  },
+  karaokeLineAbsolute: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    top: 0,
   },
   karaokeIndicator: {
     position: "absolute",
