@@ -487,15 +487,67 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [scrollMode, isReady]);
 
   useEffect(() => {
-    if (scrollMode === "karaoke" && content && content.length > 0 && nonEmptyLinesRef.current.length === 0) {
-      const fallbackTimer = setTimeout(() => {
-        if (nonEmptyLinesRef.current.length === 0) {
-          generateFallbackLines();
-        }
-      }, 300);
-      return () => clearTimeout(fallbackTimer);
+    if (scrollMode === "karaoke" && content && content.length > 0) {
+      if (nonEmptyLinesRef.current.length === 0) {
+        const fallbackTimer = setTimeout(() => {
+          if (nonEmptyLinesRef.current.length === 0) {
+            const paragraphs = content.split(/\n+/);
+            const lines: MeasuredLine[] = [];
+            const avgCharsPerLine = 50;
+            const currentLineHeight = settings.fontSize * settings.lineSpacing;
+            
+            paragraphs.forEach((paragraph) => {
+              if (paragraph.trim().length === 0) return;
+              
+              const words = paragraph.trim().split(/\s+/);
+              let currentLine = '';
+              
+              words.forEach((word) => {
+                if ((currentLine + ' ' + word).length > avgCharsPerLine && currentLine.length > 0) {
+                  lines.push({
+                    text: currentLine.trim(),
+                    x: 0,
+                    y: lines.length * currentLineHeight,
+                    width: 300,
+                    height: currentLineHeight,
+                    ascender: 0,
+                    descender: 0,
+                    capHeight: 0,
+                    xHeight: 0,
+                  });
+                  currentLine = word;
+                } else {
+                  currentLine = currentLine ? currentLine + ' ' + word : word;
+                }
+              });
+              
+              if (currentLine.trim().length > 0) {
+                lines.push({
+                  text: currentLine.trim(),
+                  x: 0,
+                  y: lines.length * currentLineHeight,
+                  width: 300,
+                  height: currentLineHeight,
+                  ascender: 0,
+                  descender: 0,
+                  capHeight: 0,
+                  xHeight: 0,
+                });
+              }
+            });
+            
+            if (lines.length > 0) {
+              measuredLinesRef.current = lines;
+              nonEmptyLinesRef.current = lines;
+              setNonEmptyLines(lines);
+              setIsReady(true);
+            }
+          }
+        }, 100);
+        return () => clearTimeout(fallbackTimer);
+      }
     }
-  }, [scrollMode, content, generateFallbackLines]);
+  }, [scrollMode, content, settings.fontSize, settings.lineSpacing]);
 
   const handleKaraokeAdvance = useCallback(() => {
     if (nonEmptyLines.length === 0) return;
