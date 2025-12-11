@@ -118,11 +118,14 @@ server/
 4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
-- December 2024: **In-Reader Settings Panel**:
-  - Tap center of screen during reading to open settings
-  - Adjust font size, line spacing, themes, scroll modes in real-time
-  - Container padding controls (top/bottom) for personalized boundaries
-  - Toggle bionic reading and focus mode without leaving the book
+- December 2024: **UX Improvements**:
+  - Auto-scroll automatically pauses when opening the general menu
+  - Simplified tap zones: left (15%) for menu, rest (85%) for scrolling
+  - Removed center tap for settings - now only accessible via left tap menu
+  - Progress bar has dedicated space at bottom, no text overlap
+  - Fixed tap-scroll with fallback when middle line detection fails
+  - Top/bottom padding properly constrains text within reading borders
+  - Settings changes apply instantly with debounced persistence (300ms)
 - December 2024: **Tap Scroll Improvements**:
   - Manual scrolling disabled in tap scroll mode for distraction-free reading
   - Tap right side (50% of screen) to advance - last line scrolls to top
