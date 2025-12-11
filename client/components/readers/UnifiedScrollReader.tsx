@@ -91,8 +91,9 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const highlightOpacity = useSharedValue(0);
 
   const lineHeight = settings.fontSize * settings.lineSpacing;
-  const paddingTop = insets.top + 60;
-  const paddingBottom = insets.bottom + 120;
+  const verticalPadding = 24;
+  const paddingTop = insets.top + 60 + verticalPadding;
+  const paddingBottom = insets.bottom + 120 + verticalPadding;
 
   const handleTextLayout = useCallback((event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const { lines } = event.nativeEvent;
@@ -112,33 +113,34 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
   }, []);
 
-  const findLastVisibleLineIndex = useCallback((): number => {
+  const findLastFullyVisibleLineIndex = useCallback((): number => {
     const lines = measuredLinesRef.current;
     if (lines.length === 0) return -1;
     
-    const viewportBottom = currentScrollY + viewportHeight - paddingBottom - 40;
-    const adjustedBottom = viewportBottom - paddingTop - textContainerY;
+    const contentVisibleTop = currentScrollY - paddingTop - textContainerY;
+    const contentVisibleBottom = currentScrollY + viewportHeight - paddingTop - textContainerY - verticalPadding;
     
-    let lastVisibleIndex = -1;
+    let lastFullyVisibleIndex = -1;
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      const lineTop = line.y;
       const lineBottom = line.y + line.height;
       
-      if (lineBottom <= adjustedBottom && line.text.trim().length > 0) {
-        lastVisibleIndex = i;
+      if (lineTop >= contentVisibleTop && lineBottom <= contentVisibleBottom && line.text.trim().length > 0) {
+        lastFullyVisibleIndex = i;
       }
     }
     
-    return lastVisibleIndex;
-  }, [currentScrollY, viewportHeight, paddingTop, paddingBottom, textContainerY]);
+    return lastFullyVisibleIndex;
+  }, [currentScrollY, viewportHeight, paddingTop, textContainerY]);
 
   const scrollToLineIndex = useCallback((lineIndex: number, highlight: boolean = true) => {
     const lines = measuredLinesRef.current;
     if (lineIndex < 0 || lineIndex >= lines.length) return;
     
     const line = lines[lineIndex];
-    const targetY = line.y + textContainerY + paddingTop - 24;
+    const targetY = line.y + textContainerY + paddingTop - verticalPadding;
     
     isScrollingRef.current = true;
     
@@ -179,13 +181,13 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     
     if (isScrollingRef.current) return;
     
-    const lastVisibleIndex = findLastVisibleLineIndex();
+    const lastVisibleIndex = findLastFullyVisibleLineIndex();
     const lines = measuredLinesRef.current;
     
     if (lastVisibleIndex >= 0 && lastVisibleIndex < lines.length - 1) {
       scrollToLineIndex(lastVisibleIndex, true);
     }
-  }, [findLastVisibleLineIndex, scrollToLineIndex]);
+  }, [findLastFullyVisibleLineIndex, scrollToLineIndex]);
 
   const handleScreenTap = useCallback(() => {
     if (scrollMode === "tapScroll") {
@@ -300,29 +302,31 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const highlightColor = theme.highlightColor || 'rgba(255, 215, 0, 0.45)';
 
   const renderContent = () => {
-    if (settings.bionicReading) {
-      const parts = content.split(/(\s+)/);
-      return (
+    return (
+      <View>
         <Text 
-          style={[styles.content, textStyle]} 
+          style={[styles.content, textStyle, { position: 'absolute', opacity: 0 }]} 
           onTextLayout={handleTextLayout}
         >
-          {parts.map((part, i) => renderBionicWord(part, i))}
+          {content}
         </Text>
-      );
-    }
-    
-    return (
-      <Text 
-        style={[styles.content, textStyle]} 
-        onTextLayout={handleTextLayout}
-      >
-        {content}
-      </Text>
+        {settings.bionicReading ? (
+          <Text style={[styles.content, textStyle]}>
+            {content.split(/(\s+)/).map((part, i) => renderBionicWord(part, i))}
+          </Text>
+        ) : (
+          <Text style={[styles.content, textStyle]}>
+            {content}
+          </Text>
+        )}
+      </View>
     );
   };
 
-  const scrollViewProps = scrollMode === "seamless" ? {
+  const scrollViewProps = scrollMode === "tapScroll" ? {
+    scrollEnabled: false,
+    showsVerticalScrollIndicator: false,
+  } : scrollMode === "seamless" ? {
     scrollEnabled: true,
     showsVerticalScrollIndicator: false,
     decelerationRate: "normal" as const,

@@ -474,26 +474,6 @@ export default function SettingsScreen() {
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.settingRow}>
               <View style={styles.settingLabelRow}>
-                <Feather name="play" size={20} color={theme.text} />
-                <View>
-                  <ThemedText style={styles.settingLabel}>Animations</ThemedText>
-                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                    Smooth page transitions
-                  </ThemedText>
-                </View>
-              </View>
-              <Switch
-                value={settings.animationsEnabled}
-                onValueChange={(value) => handleToggle("animationsEnabled", value)}
-                trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-          </View>
-
-          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingLabelRow}>
                 <Feather name="align-left" size={20} color={theme.text} />
                 <View>
                   <ThemedText style={styles.settingLabel}>Text Alignment</ThemedText>
