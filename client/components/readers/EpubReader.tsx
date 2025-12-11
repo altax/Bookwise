@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { View, StyleSheet, ActivityIndicator, Platform, Pressable } from "react-native";
 import { Reader, ReaderProvider, useReader } from "@epubjs-react-native/core";
 import { useFileSystem } from "@epubjs-react-native/expo-file-system";
@@ -39,6 +39,12 @@ function EpubReaderContent({
   const [retryCount, setRetryCount] = useState(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedRef = useRef(false);
+  const onLocationChangeRef = useRef(onLocationChange);
+  const lastLocationRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    onLocationChangeRef.current = onLocationChange;
+  }, [onLocationChange]);
 
   useEffect(() => {
     const checkFileExists = async () => {
@@ -82,22 +88,53 @@ function EpubReaderContent({
     };
   }, [fileUri, fileExists, isLoading, retryCount]);
 
-  useEffect(() => {
-    if (currentLocation && onLocationChange) {
-      onLocationChange(currentLocation);
+  const handleLocationChange = useCallback((_: unknown, current: { start: { percentage: number }; end: { percentage: number } } | undefined) => {
+    if (current && onLocationChangeRef.current) {
+      const locationKey = `${current.start.percentage}`;
+      if (locationKey !== lastLocationRef.current) {
+        lastLocationRef.current = locationKey;
+        onLocationChangeRef.current(current);
+      }
     }
-  }, [currentLocation]);
+  }, []);
 
-  const handleReady = () => {
+  const readerTheme = useMemo(() => ({
+    body: {
+      background: theme.backgroundRoot,
+      color: theme.text,
+      "font-size": `${settings.fontSize}px`,
+      "line-height": `${settings.lineSpacing}`,
+      "font-family": settings.fontFamily,
+    },
+    "*": {
+      color: theme.text,
+    },
+    a: {
+      color: theme.text,
+    },
+    "::selection": {
+      background: "rgba(100, 100, 255, 0.3)",
+    },
+  }), [theme.backgroundRoot, theme.text, settings.fontSize, settings.lineSpacing, settings.fontFamily]);
+
+  const onReadyRef = useRef(onReady);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onReadyRef.current = onReady;
+    onErrorRef.current = onError;
+  }, [onReady, onError]);
+
+  const handleReady = useCallback(() => {
     hasLoadedRef.current = true;
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
     setIsLoading(false);
-    onReady?.();
-  };
+    onReadyRef.current?.();
+  }, []);
 
-  const handleError = (err: string | Error) => {
+  const handleError = useCallback((err: string | Error) => {
     hasLoadedRef.current = true;
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -105,8 +142,8 @@ function EpubReaderContent({
     const errorMessage = typeof err === "string" ? err : err.message;
     setError(errorMessage);
     setIsLoading(false);
-    onError?.(typeof err === "string" ? new Error(err) : err);
-  };
+    onErrorRef.current?.(typeof err === "string" ? new Error(err) : err);
+  }, []);
 
   const handleRetry = () => {
     hasLoadedRef.current = false;
@@ -162,29 +199,8 @@ function EpubReaderContent({
         enableSwipe={true}
         onReady={handleReady}
         onDisplayError={handleError}
-        onLocationChange={(_, current) => {
-          if (current && onLocationChange) {
-            onLocationChange(current);
-          }
-        }}
-        defaultTheme={{
-          body: {
-            background: theme.backgroundRoot,
-            color: theme.text,
-            "font-size": `${settings.fontSize}px`,
-            "line-height": `${settings.lineSpacing}`,
-            "font-family": settings.fontFamily,
-          },
-          "*": {
-            color: theme.text,
-          },
-          a: {
-            color: theme.text,
-          },
-          "::selection": {
-            background: "rgba(100, 100, 255, 0.3)",
-          },
-        }}
+        onLocationChange={handleLocationChange}
+        defaultTheme={readerTheme}
       />
     </View>
   );
