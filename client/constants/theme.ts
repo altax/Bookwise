@@ -351,9 +351,38 @@ export const ScrollModes = {
     name: "Tap Scroll",
     description: "Tap to scroll, highlights last line",
   },
+  autoScroll: {
+    name: "Auto Scroll",
+    description: "Automatic scrolling at set speed",
+  },
 };
 
 export type ScrollMode = keyof typeof ScrollModes;
+
+export const TapScrollLinePosition = {
+  top: {
+    name: "Top",
+    description: "Last line at top of screen",
+  },
+  center: {
+    name: "Center", 
+    description: "Last line at center of screen",
+  },
+};
+
+export type TapScrollLinePositionType = keyof typeof TapScrollLinePosition;
+
+export const AutoScrollDefaults = {
+  minSpeed: 10,
+  maxSpeed: 200,
+  defaultSpeed: 50,
+};
+
+export const TapScrollDefaults = {
+  minAnimationSpeed: 100,
+  maxAnimationSpeed: 1000,
+  defaultAnimationSpeed: 300,
+};
 
 export const Shadows = {
   sm: {

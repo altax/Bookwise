@@ -363,6 +363,9 @@ export default function ReadingScreen() {
           letterSpacing: settings.letterSpacing,
           textAlignment: settings.textAlignment,
           bionicReading: settings.bionicReading,
+          autoScrollSpeed: settings.autoScrollSpeed,
+          tapScrollAnimationSpeed: settings.tapScrollAnimationSpeed,
+          tapScrollLinePosition: settings.tapScrollLinePosition,
         }}
       />
     );
@@ -376,7 +379,7 @@ export default function ReadingScreen() {
         onBreakSuggested={handleBreakSuggested}
       />
 
-      <View style={styles.contentContainer}>
+      <View style={[styles.contentContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         {renderReader()}
       </View>
 

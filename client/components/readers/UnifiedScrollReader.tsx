@@ -11,15 +11,18 @@ import {
   LayoutChangeEvent,
   Pressable,
   TextLayoutEventData,
+  Easing,
 } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withSequence,
+  runOnJS,
+  useAnimatedReaction,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { ScrollMode } from "@/constants/theme";
+import type { ScrollMode, TapScrollLinePositionType } from "@/constants/theme";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -43,13 +46,19 @@ interface UnifiedScrollReaderProps {
     letterSpacing: number;
     textAlignment: "left" | "justify";
     bionicReading: boolean;
+    autoScrollSpeed?: number;
+    tapScrollAnimationSpeed?: number;
+    tapScrollLinePosition?: TapScrollLinePositionType;
   };
   initialPosition?: number;
+  onAutoScrollStateChange?: (isPlaying: boolean) => void;
 }
 
 export interface UnifiedScrollReaderRef {
   scrollToPosition: (position: number) => void;
   getCurrentPosition: () => number;
+  toggleAutoScroll: () => void;
+  isAutoScrolling: () => boolean;
 }
 
 interface MeasuredLine {
@@ -72,6 +81,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   theme,
   settings,
   initialPosition = 0,
+  onAutoScrollStateChange,
 }, ref) => {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -79,6 +89,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const isScrollingRef = useRef(false);
   const lastTapTimeRef = useRef(0);
   const measuredLinesRef = useRef<MeasuredLine[]>([]);
+  const autoScrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   const [contentHeight, setContentHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(SCREEN_HEIGHT);
@@ -87,13 +98,65 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const [highlightedLineHeight, setHighlightedLineHeight] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [textContainerY, setTextContainerY] = useState(0);
+  const [isAutoScrollPlaying, setIsAutoScrollPlaying] = useState(false);
   
   const highlightOpacity = useSharedValue(0);
+  const animatedScrollY = useSharedValue(0);
+  const isAnimatingScrollShared = useSharedValue(0);
+  const scrollAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lineHeight = settings.fontSize * settings.lineSpacing;
   const verticalPadding = 40;
-  const paddingTop = insets.top + 60 + verticalPadding;
-  const paddingBottom = insets.bottom + 80 + verticalPadding;
+  const headerSpace = 60;
+  const footerSpace = 80;
+  const paddingTop = headerSpace + verticalPadding;
+  const paddingBottom = footerSpace + verticalPadding;
+  
+  const autoScrollSpeed = settings.autoScrollSpeed || 50;
+  const tapScrollAnimationSpeed = settings.tapScrollAnimationSpeed || 300;
+  const tapScrollLinePosition = settings.tapScrollLinePosition || "top";
+
+  const updateScrollPosition = useCallback((y: number) => {
+    scrollViewRef.current?.scrollTo({ y, animated: false });
+  }, []);
+
+  const finishScrollAnimation = useCallback(() => {
+    isAnimatingScrollShared.value = 0;
+  }, [isAnimatingScrollShared]);
+
+  useAnimatedReaction(
+    () => ({ y: animatedScrollY.value, isAnimating: isAnimatingScrollShared.value }),
+    (current) => {
+      if (current.isAnimating === 1) {
+        runOnJS(updateScrollPosition)(current.y);
+      }
+    },
+    [updateScrollPosition]
+  );
+
+  const animateScrollTo = useCallback((targetY: number, duration: number) => {
+    if (scrollAnimationTimeoutRef.current) {
+      clearTimeout(scrollAnimationTimeoutRef.current);
+      scrollAnimationTimeoutRef.current = null;
+    }
+    
+    isAnimatingScrollShared.value = 1;
+    animatedScrollY.value = currentScrollY;
+    
+    animatedScrollY.value = withTiming(targetY, {
+      duration: duration,
+    }, (finished) => {
+      'worklet';
+      if (finished) {
+        runOnJS(finishScrollAnimation)();
+      }
+    });
+    
+    scrollAnimationTimeoutRef.current = setTimeout(() => {
+      isAnimatingScrollShared.value = 0;
+      scrollAnimationTimeoutRef.current = null;
+    }, duration + 50);
+  }, [currentScrollY, animatedScrollY, isAnimatingScrollShared, finishScrollAnimation]);
 
   const handleTextLayout = useCallback((event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const { lines } = event.nativeEvent;
@@ -118,19 +181,22 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     if (lines.length === 0) return -1;
     
     const scrollOffset = currentScrollY;
-    const visibleAreaTop = scrollOffset;
-    const visibleAreaBottom = scrollOffset + viewportHeight;
-    
     const textAreaTop = paddingTop + textContainerY;
     
     let lastFullyVisibleIndex = -1;
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const lineScreenTop = textAreaTop + line.y - scrollOffset;
-      const lineScreenBottom = lineScreenTop + line.height;
+      const lineAbsoluteTop = textAreaTop + line.y;
+      const lineAbsoluteBottom = lineAbsoluteTop + line.height;
       
-      const isFullyVisible = lineScreenTop >= verticalPadding && lineScreenBottom <= (viewportHeight - verticalPadding);
+      const lineScreenTop = lineAbsoluteTop - scrollOffset;
+      const lineScreenBottom = lineAbsoluteBottom - scrollOffset;
+      
+      const visibleTop = 0;
+      const visibleBottom = viewportHeight;
+      
+      const isFullyVisible = lineScreenTop >= visibleTop && lineScreenBottom <= visibleBottom;
       
       if (isFullyVisible && line.text.trim().length > 0) {
         lastFullyVisibleIndex = i;
@@ -138,25 +204,29 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
     
     return lastFullyVisibleIndex;
-  }, [currentScrollY, viewportHeight, paddingTop, textContainerY, verticalPadding]);
+  }, [currentScrollY, viewportHeight, paddingTop, textContainerY]);
 
   const scrollToLineIndex = useCallback((lineIndex: number, highlight: boolean = true) => {
     const lines = measuredLinesRef.current;
     if (lineIndex < 0 || lineIndex >= lines.length) return;
     
     const line = lines[lineIndex];
-    const targetY = line.y + textContainerY + paddingTop - verticalPadding;
+    
+    let targetY: number;
+    if (tapScrollLinePosition === "center") {
+      targetY = line.y + textContainerY + paddingTop - (viewportHeight / 2) + (line.height / 2);
+    } else {
+      targetY = line.y + textContainerY + paddingTop - verticalPadding;
+    }
     
     isScrollingRef.current = true;
     
-    scrollViewRef.current?.scrollTo({
-      y: Math.max(0, targetY),
-      animated: true,
-    });
+    const animDuration = Math.max(tapScrollAnimationSpeed, 100);
+    animateScrollTo(Math.max(0, targetY), animDuration);
     
     setTimeout(() => {
       isScrollingRef.current = false;
-    }, 400);
+    }, animDuration + 100);
     
     if (highlight) {
       if (highlightTimeoutRef.current) {
@@ -177,7 +247,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
         highlightTimeoutRef.current = null;
       }, 1100);
     }
-  }, [paddingTop, textContainerY, highlightOpacity]);
+  }, [paddingTop, textContainerY, highlightOpacity, tapScrollLinePosition, viewportHeight, tapScrollAnimationSpeed, animateScrollTo]);
 
   const handleTapScroll = useCallback(() => {
     const now = Date.now();
@@ -194,13 +264,60 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
   }, [findLastFullyVisibleLineIndex, scrollToLineIndex]);
 
+  const startAutoScroll = useCallback(() => {
+    if (autoScrollIntervalRef.current) return;
+    
+    const pixelsPerSecond = autoScrollSpeed;
+    const intervalMs = 16;
+    const pixelsPerInterval = pixelsPerSecond / (1000 / intervalMs);
+    
+    let currentY = currentScrollY;
+    
+    autoScrollIntervalRef.current = setInterval(() => {
+      const maxScroll = contentHeight - viewportHeight + paddingTop + paddingBottom;
+      currentY += pixelsPerInterval;
+      
+      if (currentY >= maxScroll) {
+        stopAutoScroll();
+        return;
+      }
+      
+      scrollViewRef.current?.scrollTo({
+        y: currentY,
+        animated: false,
+      });
+    }, intervalMs);
+    
+    setIsAutoScrollPlaying(true);
+    onAutoScrollStateChange?.(true);
+  }, [autoScrollSpeed, currentScrollY, contentHeight, viewportHeight, paddingTop, paddingBottom, onAutoScrollStateChange]);
+
+  const stopAutoScroll = useCallback(() => {
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current);
+      autoScrollIntervalRef.current = null;
+    }
+    setIsAutoScrollPlaying(false);
+    onAutoScrollStateChange?.(false);
+  }, [onAutoScrollStateChange]);
+
+  const toggleAutoScroll = useCallback(() => {
+    if (isAutoScrollPlaying) {
+      stopAutoScroll();
+    } else {
+      startAutoScroll();
+    }
+  }, [isAutoScrollPlaying, startAutoScroll, stopAutoScroll]);
+
   const handleScreenTap = useCallback(() => {
     if (scrollMode === "tapScroll") {
       handleTapScroll();
+    } else if (scrollMode === "autoScroll") {
+      toggleAutoScroll();
     } else {
       onTap?.();
     }
-  }, [scrollMode, handleTapScroll, onTap]);
+  }, [scrollMode, handleTapScroll, toggleAutoScroll, onTap]);
 
   const scrollToPosition = useCallback((position: number) => {
     if (contentHeight <= 0) return;
@@ -221,7 +338,9 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   useImperativeHandle(ref, () => ({
     scrollToPosition,
     getCurrentPosition,
-  }), [scrollToPosition, getCurrentPosition]);
+    toggleAutoScroll,
+    isAutoScrolling: () => isAutoScrollPlaying,
+  }), [scrollToPosition, getCurrentPosition, toggleAutoScroll, isAutoScrollPlaying]);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -258,8 +377,20 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       if (highlightTimeoutRef.current) {
         clearTimeout(highlightTimeoutRef.current);
       }
+      if (autoScrollIntervalRef.current) {
+        clearInterval(autoScrollIntervalRef.current);
+      }
+      if (scrollAnimationTimeoutRef.current) {
+        clearTimeout(scrollAnimationTimeoutRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (scrollMode !== "autoScroll" && isAutoScrollPlaying) {
+      stopAutoScroll();
+    }
+  }, [scrollMode, isAutoScrollPlaying, stopAutoScroll]);
 
   const getFontFamily = () => {
     switch (settings.fontFamily) {
@@ -366,6 +497,10 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     decelerationRate: 0.99 as const,
     onScrollEndDrag: handleScrollEndDrag,
     onMomentumScrollEnd: handleScrollEndDrag,
+  } : scrollMode === "autoScroll" ? {
+    scrollEnabled: !isAutoScrollPlaying,
+    showsVerticalScrollIndicator: false,
+    decelerationRate: "normal" as const,
   } : scrollMode === "seamless" ? {
     scrollEnabled: true,
     showsVerticalScrollIndicator: false,
