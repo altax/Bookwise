@@ -119,7 +119,6 @@ export default function ReadingScreen() {
 
       if (book.fileType === "epub") {
         if (Platform.OS !== "web") {
-          setUseNativeReader(true);
           try {
             const parsed = await BookParserService.parseEpub(book.fileUri);
             setParsedBook(parsed);
@@ -136,7 +135,6 @@ export default function ReadingScreen() {
             } else {
               setContent(`Error loading EPUB: ${errorMsg}\n\nPlease try again or use a different book file.`);
             }
-            setUseNativeReader(false);
           }
         } else {
           setContent("EPUB viewing is available on mobile devices.\n\nPlease use the Expo Go app for the best reading experience.");
