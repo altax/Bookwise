@@ -18,8 +18,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
-  FadeIn,
-  FadeOut,
   interpolate,
   Extrapolation,
 } from "react-native-reanimated";
@@ -32,6 +30,8 @@ import { Colors, Spacing, BorderRadius, Fonts } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { useReading, Book } from "@/contexts/ReadingContext";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+import { NoteModal } from "@/components/NoteModal";
+import { SearchModal } from "@/components/SearchModal";
 
 type ReadingRouteProp = RouteProp<RootStackParamList, "Reading">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -44,13 +44,16 @@ export default function ReadingScreen() {
   const route = useRoute<ReadingRouteProp>();
   const { book } = route.params;
 
-  const { settings, updateBookProgress, addBookmark, currentBook } = useReading();
+  const { settings, updateBookProgress, addBookmark, addNote, removeBookmark, currentBook } = useReading();
   const [content, setContent] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [showUI, setShowUI] = useState(false);
   const [currentPage, setCurrentPage] = useState(book.currentPage || 0);
   const [totalPages, setTotalPages] = useState(book.totalPages || 1);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [selectedText, setSelectedText] = useState("");
 
   const uiOpacity = useSharedValue(0);
 
@@ -104,12 +107,36 @@ export default function ReadingScreen() {
     if (isBookmarked) {
       const bookmark = book.bookmarks.find((b) => b.page === currentPage);
       if (bookmark) {
+        await removeBookmark(book.id, bookmark.id);
         setIsBookmarked(false);
       }
     } else {
       await addBookmark(book.id, currentPage, 0);
       setIsBookmarked(true);
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
+
+  const handleAddNote = () => {
+    setSelectedText("");
+    setShowNoteModal(true);
+  };
+
+  const handleSaveNote = async (noteContent: string) => {
+    await addNote(book.id, {
+      page: currentPage,
+      position: 0,
+      selectedText: selectedText,
+      content: noteContent,
+      color: "#FFEB3B",
+    });
+  };
+
+  const handleSearch = () => {
+    setShowSearchModal(true);
+  };
+
+  const handleSearchResultSelect = (index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
@@ -147,6 +174,15 @@ export default function ReadingScreen() {
         toggleUI();
       }
     });
+
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(500)
+    .onEnd(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      setShowNoteModal(true);
+    });
+
+  const composedGesture = Gesture.Exclusive(longPressGesture, tapGesture);
 
   const progress = totalPages > 0 ? ((currentPage + 1) / totalPages) * 100 : 0;
 
@@ -203,7 +239,7 @@ export default function ReadingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      <GestureDetector gesture={tapGesture}>
+      <GestureDetector gesture={composedGesture}>
         <View style={styles.contentContainer}>
           <ScrollView
             style={styles.scrollView}
@@ -250,12 +286,17 @@ export default function ReadingScreen() {
               {book.title}
             </ThemedText>
             <View style={styles.headerActions}>
+              <Pressable onPress={handleSearch} style={styles.headerButton}>
+                <Feather name="search" size={22} color={theme.text} />
+              </Pressable>
+              <Pressable onPress={handleAddNote} style={styles.headerButton}>
+                <Feather name="edit-3" size={22} color={theme.text} />
+              </Pressable>
               <Pressable onPress={handleBookmark} style={styles.headerButton}>
                 <Feather
                   name="heart"
                   size={22}
                   color={isBookmarked ? theme.accent : theme.text}
-                  fill={isBookmarked ? theme.accent : "transparent"}
                 />
               </Pressable>
               <Pressable onPress={handleTableOfContents} style={styles.headerButton}>
@@ -300,6 +341,22 @@ export default function ReadingScreen() {
           </View>
         </Animated.View>
       ) : null}
+
+      <NoteModal
+        visible={showNoteModal}
+        onClose={() => setShowNoteModal(false)}
+        onSave={handleSaveNote}
+        selectedText={selectedText}
+        theme={theme}
+      />
+
+      <SearchModal
+        visible={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        content={content}
+        onResultSelect={handleSearchResultSelect}
+        theme={theme}
+      />
     </View>
   );
 }

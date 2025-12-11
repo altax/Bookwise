@@ -1,5 +1,5 @@
-import React from "react";
-import { View, StyleSheet, Switch, Pressable, ScrollView } from "react-native";
+import React, { useState } from "react";
+import { View, StyleSheet, Switch, Pressable, ScrollView, Alert, Share, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
@@ -31,7 +31,8 @@ export default function SettingsScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
-  const { settings, updateSettings } = useReading();
+  const { settings, updateSettings, exportData, books } = useReading();
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleThemeChange = (mode: ThemeMode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -47,6 +48,69 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     updateSettings({ fontFamily: fontValue });
   };
+
+  const handleExportJSON = async () => {
+    if (books.length === 0) {
+      Alert.alert("No Data", "You don't have any books with bookmarks or notes to export.");
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      const jsonData = await exportData();
+      
+      await Share.share({
+        message: jsonData,
+        title: "Bookwise Export (JSON)",
+      });
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("Export error:", error);
+      Alert.alert("Export Failed", "Could not export your data. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    if (books.length === 0) {
+      Alert.alert("No Data", "You don't have any books with bookmarks or notes to export.");
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      
+      let csvContent = "Book Title,Author,Type,Page,Content,Created At\n";
+      
+      books.forEach((book) => {
+        book.bookmarks.forEach((bookmark) => {
+          csvContent += `"${book.title}","${book.author}","Bookmark",${bookmark.page},"",${new Date(bookmark.createdAt).toISOString()}\n`;
+        });
+        book.notes.forEach((note) => {
+          const escapedContent = note.content.replace(/"/g, '""');
+          const escapedSelectedText = note.selectedText.replace(/"/g, '""');
+          csvContent += `"${book.title}","${book.author}","Note",${note.page},"${escapedSelectedText}: ${escapedContent}",${new Date(note.createdAt).toISOString()}\n`;
+        });
+      });
+
+      await Share.share({
+        message: csvContent,
+        title: "Bookwise Export (CSV)",
+      });
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      console.error("Export error:", error);
+      Alert.alert("Export Failed", "Could not export your data. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const totalBookmarks = books.reduce((acc, book) => acc + book.bookmarks.length, 0);
+  const totalNotes = books.reduce((acc, book) => acc + book.notes.length, 0);
 
   return (
     <ThemedView style={styles.container}>
@@ -239,6 +303,78 @@ export default function SettingsScreen() {
 
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
+            Data
+          </ThemedText>
+
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <ThemedText type="h3" style={{ color: theme.accent }}>
+                  {books.length}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                  Books
+                </ThemedText>
+              </View>
+              <View style={styles.statItem}>
+                <ThemedText type="h3" style={{ color: theme.accent }}>
+                  {totalBookmarks}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                  Bookmarks
+                </ThemedText>
+              </View>
+              <View style={styles.statItem}>
+                <ThemedText type="h3" style={{ color: theme.accent }}>
+                  {totalNotes}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                  Notes
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <ThemedText style={styles.cardLabel}>Export</ThemedText>
+            <View style={styles.exportButtons}>
+              <Pressable
+                style={[styles.exportButton, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={handleExportJSON}
+                disabled={isExporting}
+              >
+                {isExporting ? (
+                  <ActivityIndicator size="small" color={theme.accent} />
+                ) : (
+                  <>
+                    <Feather name="file-text" size={20} color={theme.text} />
+                    <ThemedText style={styles.exportButtonText}>JSON</ThemedText>
+                  </>
+                )}
+              </Pressable>
+              <Pressable
+                style={[styles.exportButton, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={handleExportCSV}
+                disabled={isExporting}
+              >
+                {isExporting ? (
+                  <ActivityIndicator size="small" color={theme.accent} />
+                ) : (
+                  <>
+                    <Feather name="file" size={20} color={theme.text} />
+                    <ThemedText style={styles.exportButtonText}>CSV</ThemedText>
+                  </>
+                )}
+              </Pressable>
+            </View>
+            <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+              Export bookmarks and notes
+            </ThemedText>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>
             About
           </ThemedText>
 
@@ -343,6 +479,33 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     justifyContent: "center",
     alignItems: "center",
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  statItem: {
+    alignItems: "center",
+  },
+  statLabel: {
+    fontSize: 12,
+    marginTop: Spacing.xs,
+  },
+  exportButtons: {
+    flexDirection: "row",
+    gap: Spacing.md,
+  },
+  exportButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  exportButtonText: {
+    fontWeight: "600",
   },
   aboutRow: {
     flexDirection: "row",

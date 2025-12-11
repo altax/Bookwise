@@ -20,9 +20,12 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  FadeIn,
-  FadeOut,
+  runOnJS,
 } from "react-native-reanimated";
+import {
+  Gesture,
+  GestureDetector,
+} from "react-native-gesture-handler";
 
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
@@ -35,6 +38,85 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+interface SwipeableBookCardProps {
+  book: Book;
+  onPress: () => void;
+  onDelete: () => void;
+  viewMode: "grid" | "list";
+  theme: any;
+}
+
+function SwipeableBookCard({ book, onPress, onDelete, viewMode, theme }: SwipeableBookCardProps) {
+  const translateX = useSharedValue(0);
+  const deleteWidth = 80;
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .onUpdate((event) => {
+      if (viewMode === "list") {
+        translateX.value = Math.max(-deleteWidth, Math.min(0, event.translationX));
+      }
+    })
+    .onEnd(() => {
+      if (translateX.value < -deleteWidth / 2) {
+        translateX.value = withSpring(-deleteWidth);
+      } else {
+        translateX.value = withSpring(0);
+      }
+    });
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const deleteButtonStyle = useAnimatedStyle(() => ({
+    opacity: translateX.value < -10 ? 1 : 0,
+  }));
+
+  if (viewMode === "grid") {
+    return (
+      <BookCard
+        book={book}
+        onPress={onPress}
+        onLongPress={onDelete}
+        viewMode={viewMode}
+      />
+    );
+  }
+
+  return (
+    <View style={styles.swipeContainer}>
+      <Animated.View
+        style={[
+          styles.deleteAction,
+          { backgroundColor: "#E53935" },
+          deleteButtonStyle,
+        ]}
+      >
+        <Pressable
+          style={styles.deleteActionButton}
+          onPress={() => {
+            translateX.value = withSpring(0);
+            onDelete();
+          }}
+        >
+          <Feather name="trash-2" size={24} color="#FFFFFF" />
+        </Pressable>
+      </Animated.View>
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={cardStyle}>
+          <BookCard
+            book={book}
+            onPress={onPress}
+            onLongPress={onDelete}
+            viewMode={viewMode}
+          />
+        </Animated.View>
+      </GestureDetector>
+    </View>
+  );
+}
 
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
@@ -122,6 +204,20 @@ export default function LibraryScreen() {
     );
   };
 
+  const toggleViewMode = () => {
+    setViewMode((prev) => (prev === "grid" ? "list" : "grid"));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const cycleSortBy = () => {
+    setSortBy((prev) => {
+      if (prev === "recent") return "title";
+      if (prev === "title") return "date";
+      return "recent";
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
   const sortedBooks = React.useMemo(() => {
     const sorted = [...books];
     switch (sortBy) {
@@ -141,14 +237,63 @@ export default function LibraryScreen() {
 
   const renderBook = useCallback(
     ({ item }: { item: Book }) => (
-      <BookCard
+      <SwipeableBookCard
         book={item}
         onPress={() => handleOpenBook(item)}
-        onLongPress={() => handleDeleteBook(item)}
+        onDelete={() => handleDeleteBook(item)}
         viewMode={viewMode}
+        theme={theme}
       />
     ),
-    [viewMode]
+    [viewMode, theme]
+  );
+
+  const renderHeader = () => (
+    <View style={styles.listHeader}>
+      <View style={styles.sortToggle}>
+        <Pressable
+          style={[styles.toggleButton, { backgroundColor: theme.backgroundSecondary }]}
+          onPress={cycleSortBy}
+        >
+          <Feather
+            name={sortBy === "title" ? "type" : sortBy === "date" ? "calendar" : "clock"}
+            size={16}
+            color={theme.text}
+          />
+          <ThemedText style={styles.toggleText}>
+            {sortBy === "title" ? "A-Z" : sortBy === "date" ? "Added" : "Recent"}
+          </ThemedText>
+        </Pressable>
+      </View>
+      <View style={styles.viewToggle}>
+        <Pressable
+          style={[
+            styles.viewButton,
+            viewMode === "grid" && { backgroundColor: theme.accent + "20" },
+          ]}
+          onPress={() => setViewMode("grid")}
+        >
+          <Feather
+            name="grid"
+            size={18}
+            color={viewMode === "grid" ? theme.accent : theme.secondaryText}
+          />
+        </Pressable>
+        <Pressable
+          style={[
+            styles.viewButton,
+            viewMode === "list" && { backgroundColor: theme.accent + "20" },
+          ]}
+          onPress={() => setViewMode("list")}
+        >
+          <Feather
+            name="list"
+            size={18}
+            color={viewMode === "list" ? theme.accent : theme.secondaryText}
+          />
+        </Pressable>
+      </View>
+    </View>
   );
 
   const renderEmptyState = () => (
@@ -193,11 +338,12 @@ export default function LibraryScreen() {
         contentContainerStyle={[
           styles.listContent,
           {
-            paddingTop: headerHeight + Spacing.xl,
+            paddingTop: headerHeight + Spacing.sm,
             paddingBottom: tabBarHeight + 80,
           },
         ]}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
+        ListHeaderComponent={books.length > 0 ? renderHeader : null}
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
       />
@@ -241,6 +387,55 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: Spacing.lg,
     gap: Spacing.lg,
+  },
+  listHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
+  },
+  sortToggle: {
+    flexDirection: "row",
+  },
+  toggleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  viewToggle: {
+    flexDirection: "row",
+    gap: Spacing.xs,
+  },
+  viewButton: {
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+  },
+  swipeContainer: {
+    position: "relative",
+    marginBottom: Spacing.sm,
+  },
+  deleteAction: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 80,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: BorderRadius.md,
+  },
+  deleteActionButton: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
   },
   emptyContainer: {
     flex: 1,

@@ -15,6 +15,7 @@ export interface Book {
   lastRead: number;
   addedAt: number;
   bookmarks: Bookmark[];
+  notes: Note[];
 }
 
 export interface Bookmark {
@@ -24,6 +25,17 @@ export interface Bookmark {
   createdAt: number;
 }
 
+export interface Note {
+  id: string;
+  page: number;
+  position: number;
+  selectedText: string;
+  content: string;
+  color: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 interface ReadingSettings {
   fontSize: number;
   lineSpacing: number;
@@ -31,6 +43,7 @@ interface ReadingSettings {
   fontFamily: string;
   themeMode: ThemeMode;
   autoTheme: boolean;
+  hasSeenOnboarding: boolean;
 }
 
 interface ReadingContextType {
@@ -38,13 +51,17 @@ interface ReadingContextType {
   currentBook: Book | null;
   settings: ReadingSettings;
   isLoading: boolean;
-  addBook: (book: Omit<Book, "id" | "progress" | "currentPage" | "lastRead" | "addedAt" | "bookmarks">) => Promise<void>;
+  addBook: (book: Omit<Book, "id" | "progress" | "currentPage" | "lastRead" | "addedAt" | "bookmarks" | "notes">) => Promise<void>;
   removeBook: (id: string) => Promise<void>;
   setCurrentBook: (book: Book | null) => void;
   updateBookProgress: (id: string, currentPage: number, totalPages: number) => Promise<void>;
   addBookmark: (bookId: string, page: number, position: number) => Promise<void>;
   removeBookmark: (bookId: string, bookmarkId: string) => Promise<void>;
+  addNote: (bookId: string, note: Omit<Note, "id" | "createdAt" | "updatedAt">) => Promise<void>;
+  updateNote: (bookId: string, noteId: string, content: string) => Promise<void>;
+  removeNote: (bookId: string, noteId: string) => Promise<void>;
   updateSettings: (newSettings: Partial<ReadingSettings>) => Promise<void>;
+  exportData: (bookId?: string) => Promise<string>;
 }
 
 const defaultSettings: ReadingSettings = {
@@ -54,6 +71,7 @@ const defaultSettings: ReadingSettings = {
   fontFamily: AvailableFonts[0].value,
   themeMode: "light",
   autoTheme: true,
+  hasSeenOnboarding: false,
 };
 
 const ReadingContext = createContext<ReadingContextType | undefined>(undefined);
@@ -79,7 +97,12 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
       ]);
 
       if (booksData) {
-        setBooks(JSON.parse(booksData));
+        const parsedBooks = JSON.parse(booksData);
+        const migratedBooks = parsedBooks.map((book: Book) => ({
+          ...book,
+          notes: book.notes || [],
+        }));
+        setBooks(migratedBooks);
       }
       if (settingsData) {
         setSettings({ ...defaultSettings, ...JSON.parse(settingsData) });
@@ -107,7 +130,7 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addBook = async (bookData: Omit<Book, "id" | "progress" | "currentPage" | "lastRead" | "addedAt" | "bookmarks">) => {
+  const addBook = async (bookData: Omit<Book, "id" | "progress" | "currentPage" | "lastRead" | "addedAt" | "bookmarks" | "notes">) => {
     const newBook: Book = {
       ...bookData,
       id: Date.now().toString(),
@@ -116,6 +139,7 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
       lastRead: Date.now(),
       addedAt: Date.now(),
       bookmarks: [],
+      notes: [],
     };
     const newBooks = [newBook, ...books];
     setBooks(newBooks);
@@ -180,6 +204,86 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
     await saveBooks(newBooks);
   };
 
+  const addNote = async (bookId: string, noteData: Omit<Note, "id" | "createdAt" | "updatedAt">) => {
+    const note: Note = {
+      ...noteData,
+      id: Date.now().toString(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const newBooks = books.map((book) =>
+      book.id === bookId
+        ? { ...book, notes: [...book.notes, note] }
+        : book
+    );
+    setBooks(newBooks);
+    if (currentBook?.id === bookId) {
+      setCurrentBook({ ...currentBook, notes: [...currentBook.notes, note] });
+    }
+    await saveBooks(newBooks);
+  };
+
+  const updateNote = async (bookId: string, noteId: string, content: string) => {
+    const newBooks = books.map((book) =>
+      book.id === bookId
+        ? {
+            ...book,
+            notes: book.notes.map((n) =>
+              n.id === noteId ? { ...n, content, updatedAt: Date.now() } : n
+            ),
+          }
+        : book
+    );
+    setBooks(newBooks);
+    if (currentBook?.id === bookId) {
+      setCurrentBook({
+        ...currentBook,
+        notes: currentBook.notes.map((n) =>
+          n.id === noteId ? { ...n, content, updatedAt: Date.now() } : n
+        ),
+      });
+    }
+    await saveBooks(newBooks);
+  };
+
+  const removeNote = async (bookId: string, noteId: string) => {
+    const newBooks = books.map((book) =>
+      book.id === bookId
+        ? { ...book, notes: book.notes.filter((n) => n.id !== noteId) }
+        : book
+    );
+    setBooks(newBooks);
+    if (currentBook?.id === bookId) {
+      setCurrentBook({
+        ...currentBook,
+        notes: currentBook.notes.filter((n) => n.id !== noteId),
+      });
+    }
+    await saveBooks(newBooks);
+  };
+
+  const exportData = async (bookId?: string) => {
+    const booksToExport = bookId ? books.filter((b) => b.id === bookId) : books;
+    
+    const exportedData = booksToExport.map((book) => ({
+      title: book.title,
+      author: book.author,
+      progress: `${Math.round(book.progress)}%`,
+      bookmarks: book.bookmarks.map((b) => ({
+        page: b.page,
+        createdAt: new Date(b.createdAt).toISOString(),
+      })),
+      notes: book.notes.map((n) => ({
+        page: n.page,
+        selectedText: n.selectedText,
+        content: n.content,
+        createdAt: new Date(n.createdAt).toISOString(),
+      })),
+    }));
+
+    return JSON.stringify(exportedData, null, 2);
+  };
+
   const updateSettings = async (newSettings: Partial<ReadingSettings>) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
@@ -199,7 +303,11 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
         updateBookProgress,
         addBookmark,
         removeBookmark,
+        addNote,
+        updateNote,
+        removeNote,
         updateSettings,
+        exportData,
       }}
     >
       {children}
