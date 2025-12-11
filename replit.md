@@ -118,17 +118,19 @@ server/
 4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
+- December 2024: **Tap Zone & Settings Redesign**:
+  - 3-zone tap system: left (15%) = menu, center (70%) = nothing, right (15%) = tap scroll only in tap mode
+  - Removed unused top/bottom padding settings from ReadingContext and UI
+  - Compact settings panel with live text preview showing real-time font size and line spacing changes
+  - Tap scroll now supports both "Top" and "Center" target positions via settings
+  - Reading timer properly respects Android safe area insets (no more overlap with status bar)
+  - Tap scroll completely reworked using measured line layout data for accurate scrolling
 - December 2024: **UX Improvements**:
   - Auto-scroll automatically pauses when opening the general menu
-  - Simplified tap zones: left (15%) for menu, rest (85%) for scrolling
-  - Removed center tap for settings - now only accessible via left tap menu
   - Progress bar has dedicated space at bottom, no text overlap
-  - Fixed tap-scroll with fallback when middle line detection fails
-  - Top/bottom padding properly constrains text within reading borders
   - Settings changes apply instantly with debounced persistence (300ms)
 - December 2024: **Tap Scroll Improvements**:
   - Manual scrolling disabled in tap scroll mode for distraction-free reading
-  - Tap right side (50% of screen) to advance - last line scrolls to top
   - Visual hint overlay appears when entering tap scroll mode
   - Configurable animation speed (100-1000ms)
 - December 2024: **Reading Timer Visibility**:
