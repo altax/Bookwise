@@ -133,10 +133,11 @@ server/
 - December 2024: Created UnifiedScrollReader component with accurate line detection using React Native's onTextLayout callback
 - December 2024: Simplified EPUB loading flow (load -> open -> read)
 - December 2024: **Tap-Scroll Improvements**:
-  - Fixed last visible line detection to correctly identify fully visible lines
-  - Disabled manual scrolling in tap-scroll mode (tap-only navigation)
-  - Added vertical padding (24px) so text doesn't touch screen edges
+  - Fixed last visible line detection using screen coordinates for accurate visibility check
+  - Added slow manual scrolling with line-snapping (scrolls snap to nearest line after drag)
+  - Added vertical padding (40px) so text doesn't touch screen edges (top and bottom)
   - Auto-adjusts scroll to ensure last line is fully visible after tap
+  - Very slow deceleration rate for controlled one-line-at-a-time scrolling
 - December 2024: Fixed bionic mode infinite loading by separating layout measurement from styled text rendering
 - December 2024: Removed "Animations/Smooth page transitions" setting from settings screen
 

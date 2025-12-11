@@ -91,9 +91,9 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const highlightOpacity = useSharedValue(0);
 
   const lineHeight = settings.fontSize * settings.lineSpacing;
-  const verticalPadding = 24;
+  const verticalPadding = 40;
   const paddingTop = insets.top + 60 + verticalPadding;
-  const paddingBottom = insets.bottom + 120 + verticalPadding;
+  const paddingBottom = insets.bottom + 80 + verticalPadding;
 
   const handleTextLayout = useCallback((event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const { lines } = event.nativeEvent;
@@ -117,23 +117,28 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     const lines = measuredLinesRef.current;
     if (lines.length === 0) return -1;
     
-    const contentVisibleTop = currentScrollY - paddingTop - textContainerY;
-    const contentVisibleBottom = currentScrollY + viewportHeight - paddingTop - textContainerY - verticalPadding;
+    const scrollOffset = currentScrollY;
+    const visibleAreaTop = scrollOffset;
+    const visibleAreaBottom = scrollOffset + viewportHeight;
+    
+    const textAreaTop = paddingTop + textContainerY;
     
     let lastFullyVisibleIndex = -1;
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const lineTop = line.y;
-      const lineBottom = line.y + line.height;
+      const lineScreenTop = textAreaTop + line.y - scrollOffset;
+      const lineScreenBottom = lineScreenTop + line.height;
       
-      if (lineTop >= contentVisibleTop && lineBottom <= contentVisibleBottom && line.text.trim().length > 0) {
+      const isFullyVisible = lineScreenTop >= verticalPadding && lineScreenBottom <= (viewportHeight - verticalPadding);
+      
+      if (isFullyVisible && line.text.trim().length > 0) {
         lastFullyVisibleIndex = i;
       }
     }
     
     return lastFullyVisibleIndex;
-  }, [currentScrollY, viewportHeight, paddingTop, textContainerY]);
+  }, [currentScrollY, viewportHeight, paddingTop, textContainerY, verticalPadding]);
 
   const scrollToLineIndex = useCallback((lineIndex: number, highlight: boolean = true) => {
     const lines = measuredLinesRef.current;
@@ -323,9 +328,44 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     );
   };
 
+  const handleScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (scrollMode !== "tapScroll") return;
+    
+    const { contentOffset } = event.nativeEvent;
+    const lines = measuredLinesRef.current;
+    if (lines.length === 0) return;
+    
+    const textAreaTop = paddingTop + textContainerY;
+    
+    let closestLineIndex = 0;
+    let minDistance = Infinity;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineScrollPosition = textAreaTop + line.y - verticalPadding;
+      const distance = Math.abs(contentOffset.y - lineScrollPosition);
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestLineIndex = i;
+      }
+    }
+    
+    const targetLine = lines[closestLineIndex];
+    const targetY = textAreaTop + targetLine.y - verticalPadding;
+    
+    scrollViewRef.current?.scrollTo({
+      y: Math.max(0, targetY),
+      animated: true,
+    });
+  }, [scrollMode, paddingTop, textContainerY, verticalPadding]);
+
   const scrollViewProps = scrollMode === "tapScroll" ? {
-    scrollEnabled: false,
+    scrollEnabled: true,
     showsVerticalScrollIndicator: false,
+    decelerationRate: 0.99 as const,
+    onScrollEndDrag: handleScrollEndDrag,
+    onMomentumScrollEnd: handleScrollEndDrag,
   } : scrollMode === "seamless" ? {
     scrollEnabled: true,
     showsVerticalScrollIndicator: false,
