@@ -54,6 +54,8 @@ export function BookCard({ book, onPress, onLongPress, viewMode }: BookCardProps
         return "file-text";
       case "txt":
         return "file";
+      case "fb2":
+        return "book-open";
       default:
         return "book";
     }

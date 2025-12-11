@@ -148,6 +148,9 @@ export default function LibraryScreen() {
           "application/epub+zip",
           "application/pdf",
           "text/plain",
+          "application/x-fictionbook+xml",
+          "application/xml",
+          "*/*",
         ],
         copyToCacheDirectory: true,
       });
@@ -167,7 +170,7 @@ export default function LibraryScreen() {
           });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } else {
-          Alert.alert("Unsupported Format", "Please select an EPUB, PDF, or TXT file.");
+          Alert.alert("Unsupported Format", "Please select an EPUB, PDF, FB2, or TXT file.");
         }
       }
     } catch (error) {
@@ -178,10 +181,11 @@ export default function LibraryScreen() {
     }
   };
 
-  const getFileType = (mimeType: string, fileName: string): "epub" | "pdf" | "txt" | null => {
+  const getFileType = (mimeType: string, fileName: string): "epub" | "pdf" | "txt" | "fb2" | null => {
     if (mimeType.includes("epub") || fileName.endsWith(".epub")) return "epub";
     if (mimeType.includes("pdf") || fileName.endsWith(".pdf")) return "pdf";
     if (mimeType.includes("text") || fileName.endsWith(".txt")) return "txt";
+    if (mimeType.includes("fictionbook") || fileName.endsWith(".fb2") || fileName.endsWith(".fb2.zip")) return "fb2";
     return null;
   };
 

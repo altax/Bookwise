@@ -8,7 +8,7 @@ export interface Book {
   author: string;
   coverUri?: string;
   fileUri: string;
-  fileType: "epub" | "pdf" | "txt";
+  fileType: "epub" | "pdf" | "txt" | "fb2";
   progress: number;
   totalPages: number;
   currentPage: number;

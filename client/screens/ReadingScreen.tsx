@@ -40,6 +40,8 @@ import { BionicText } from "@/components/BionicText";
 import { BookmarkRibbon } from "@/components/BookmarkRibbon";
 import { ReadingTimer } from "@/components/ReadingTimer";
 import { SkeletonReader } from "@/components/Skeleton";
+import { EpubReader, PdfReader, Fb2Reader, TxtReader } from "@/components/readers";
+import { BookParserService, ParsedBook } from "@/services/BookParserService";
 
 type ReadingRouteProp = RouteProp<RootStackParamList, "Reading">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -79,6 +81,8 @@ export default function ReadingScreen() {
   const [selectedText, setSelectedText] = useState("");
   const [wordCount, setWordCount] = useState(0);
   const [estimatedReadingTime, setEstimatedReadingTime] = useState(0);
+  const [parsedBook, setParsedBook] = useState<ParsedBook | null>(null);
+  const [useNativeReader, setUseNativeReader] = useState(false);
 
   const startPageRef = useRef(currentPage);
   const sessionStartRef = useRef(Date.now());
@@ -108,7 +112,44 @@ export default function ReadingScreen() {
     try {
       setIsLoading(true);
 
-      if (book.fileType === "txt") {
+      if (book.fileType === "epub") {
+        if (Platform.OS !== "web") {
+          setUseNativeReader(true);
+          try {
+            const parsed = await BookParserService.parseEpub(book.fileUri);
+            setParsedBook(parsed);
+            setContent(parsed.content);
+            setTotalPages(parsed.totalPages);
+            const words = parsed.content.split(/\s+/).length;
+            setWordCount(words);
+            setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
+          } catch (err) {
+            console.error("Error parsing EPUB:", err);
+            setContent("Error loading EPUB. Please try again.");
+            setUseNativeReader(false);
+          }
+        } else {
+          setContent("EPUB viewing is available on mobile devices.\n\nPlease use the Expo Go app for the best reading experience.");
+          setTotalPages(book.totalPages || 10);
+        }
+      } else if (book.fileType === "fb2") {
+        try {
+          const parsed = await BookParserService.parseFb2(book.fileUri);
+          setParsedBook(parsed);
+          setContent(parsed.content);
+          setTotalPages(parsed.totalPages);
+          const words = parsed.content.split(/\s+/).length;
+          setWordCount(words);
+          setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
+        } catch (err) {
+          console.error("Error parsing FB2:", err);
+          setContent("Error loading FB2. Please try again.");
+        }
+      } else if (book.fileType === "pdf") {
+        setUseNativeReader(true);
+        setContent("PDF content");
+        setTotalPages(book.totalPages || 10);
+      } else if (book.fileType === "txt") {
         const text = await FileSystem.readAsStringAsync(book.fileUri);
         setContent(text);
         const estimatedPages = Math.ceil(text.length / 2000);
@@ -117,12 +158,6 @@ export default function ReadingScreen() {
         const words = text.split(/\s+/).length;
         setWordCount(words);
         setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
-      } else if (book.fileType === "pdf") {
-        setContent("PDF viewing is not yet fully supported.\n\nThis is a preview of your PDF book. Full PDF rendering will be available in a future update.");
-        setTotalPages(book.totalPages || 10);
-      } else if (book.fileType === "epub") {
-        setContent("EPUB viewing is not yet fully supported.\n\nThis is a preview of your EPUB book. Full EPUB rendering with chapters will be available in a future update.");
-        setTotalPages(book.totalPages || 10);
       }
     } catch (error) {
       console.error("Error loading book:", error);
@@ -226,13 +261,14 @@ export default function ReadingScreen() {
   }, [currentPage, totalPages, settings.animationsEnabled, triggerHaptic]);
 
   const handleTableOfContents = () => {
+    const chapters = parsedBook?.chapters || [
+      { title: "Chapter 1", page: 0 },
+      { title: "Chapter 2", page: 3 },
+      { title: "Chapter 3", page: 6 },
+    ];
     navigation.navigate("TableOfContents", {
       book: activeBook,
-      chapters: [
-        { title: "Chapter 1", page: 0 },
-        { title: "Chapter 2", page: 3 },
-        { title: "Chapter 3", page: 6 },
-      ],
+      chapters: chapters.map((c, i) => ({ title: c.title, page: c.order || i })),
     });
   };
 
@@ -241,6 +277,36 @@ export default function ReadingScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     }
   }, [settings.hapticFeedback]);
+
+  const handleEpubLocationChange = useCallback((location: { start: { percentage: number }; end: { percentage: number } }) => {
+    if (location?.start?.percentage !== undefined) {
+      const newPage = Math.floor(location.start.percentage * totalPages);
+      if (newPage !== currentPage) {
+        setCurrentPage(newPage);
+      }
+    }
+  }, [totalPages, currentPage]);
+
+  const handlePdfPageChange = useCallback((page: number, total: number) => {
+    setCurrentPage(page - 1);
+    setTotalPages(total);
+  }, []);
+
+  const handleFb2ContentLoaded = useCallback((parsed: ParsedBook) => {
+    setParsedBook(parsed);
+    setTotalPages(parsed.totalPages);
+    const words = parsed.content.split(/\s+/).length;
+    setWordCount(words);
+    setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
+  }, [stats.averageReadingSpeed]);
+
+  const handleTxtContentLoaded = useCallback((content: string, pages: number) => {
+    setContent(content);
+    setTotalPages(pages);
+    const words = content.split(/\s+/).length;
+    setWordCount(words);
+    setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
+  }, [stats.averageReadingSpeed]);
 
   const tapGesture = Gesture.Tap()
     .onEnd((event) => {
@@ -352,21 +418,106 @@ export default function ReadingScreen() {
     );
   }
 
-  const renderContent = () => {
-    if (settings.bionicReading) {
+  const renderReader = () => {
+    if (book.fileType === "epub" && useNativeReader && Platform.OS !== "web") {
       return (
-        <BionicText style={getTextStyle()} enabled={true}>
-          {content}
-        </BionicText>
+        <EpubReader
+          fileUri={book.fileUri}
+          onLocationChange={handleEpubLocationChange}
+          onReady={() => setIsLoading(false)}
+          onError={(err) => console.error("EPUB error:", err)}
+          theme={{ text: theme.text, backgroundRoot: theme.backgroundRoot }}
+          settings={{
+            fontSize: settings.fontSize,
+            lineSpacing: settings.lineSpacing,
+            fontFamily: getFontFamily(),
+          }}
+        />
+      );
+    }
+
+    if (book.fileType === "pdf") {
+      return (
+        <PdfReader
+          fileUri={book.fileUri}
+          onPageChange={handlePdfPageChange}
+          onReady={() => setIsLoading(false)}
+          onError={(err) => console.error("PDF error:", err)}
+          theme={{ text: theme.text, backgroundRoot: theme.backgroundRoot }}
+        />
+      );
+    }
+
+    if (book.fileType === "fb2") {
+      return (
+        <Fb2Reader
+          fileUri={book.fileUri}
+          currentPage={currentPage}
+          onContentLoaded={handleFb2ContentLoaded}
+          onError={(err) => console.error("FB2 error:", err)}
+          theme={{ text: theme.text, backgroundRoot: theme.backgroundRoot, secondaryText: theme.secondaryText }}
+          settings={{
+            fontSize: settings.fontSize,
+            lineSpacing: settings.lineSpacing,
+            fontFamily: settings.fontFamily,
+            marginHorizontal: settings.marginHorizontal,
+            letterSpacing: settings.letterSpacing,
+            textAlignment: settings.textAlignment,
+            bionicReading: settings.bionicReading,
+          }}
+        />
+      );
+    }
+
+    if (book.fileType === "txt") {
+      return (
+        <TxtReader
+          fileUri={book.fileUri}
+          currentPage={currentPage}
+          onContentLoaded={handleTxtContentLoaded}
+          onError={(err) => console.error("TXT error:", err)}
+          theme={{ text: theme.text, backgroundRoot: theme.backgroundRoot, secondaryText: theme.secondaryText }}
+          settings={{
+            fontSize: settings.fontSize,
+            lineSpacing: settings.lineSpacing,
+            fontFamily: settings.fontFamily,
+            marginHorizontal: settings.marginHorizontal,
+            letterSpacing: settings.letterSpacing,
+            textAlignment: settings.textAlignment,
+            bionicReading: settings.bionicReading,
+          }}
+        />
       );
     }
 
     return (
-      <Text style={[styles.bookText, getTextStyle()]}>
-        {content}
-      </Text>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.textContent,
+          {
+            paddingHorizontal: settings.marginHorizontal,
+            paddingTop: insets.top + (settings.focusMode ? Spacing["5xl"] : Spacing["3xl"]),
+            paddingBottom: insets.bottom + 100,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+      >
+        {settings.bionicReading ? (
+          <BionicText style={getTextStyle()} enabled={true}>
+            {content}
+          </BionicText>
+        ) : (
+          <Text style={[styles.bookText, getTextStyle()]}>
+            {content}
+          </Text>
+        )}
+      </ScrollView>
     );
   };
+
+  const shouldUseGestures = book.fileType === "txt" || book.fileType === "fb2" || (book.fileType === "epub" && !useNativeReader);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -376,25 +527,17 @@ export default function ReadingScreen() {
         onBreakSuggested={handleBreakSuggested}
       />
 
-      <GestureDetector gesture={composedGesture}>
-        <Animated.View style={[styles.contentContainer, settings.animationsEnabled ? pageAnimatedStyle : undefined]}>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={[
-              styles.textContent,
-              {
-                paddingHorizontal: settings.marginHorizontal,
-                paddingTop: insets.top + (settings.focusMode ? Spacing["5xl"] : Spacing["3xl"]),
-                paddingBottom: insets.bottom + 100,
-              },
-            ]}
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
-          >
-            {renderContent()}
-          </ScrollView>
-        </Animated.View>
-      </GestureDetector>
+      {shouldUseGestures ? (
+        <GestureDetector gesture={composedGesture}>
+          <Animated.View style={[styles.contentContainer, settings.animationsEnabled ? pageAnimatedStyle : undefined]}>
+            {renderReader()}
+          </Animated.View>
+        </GestureDetector>
+      ) : (
+        <View style={styles.contentContainer}>
+          {renderReader()}
+        </View>
+      )}
 
       {!settings.focusMode && (
         <Animated.View
@@ -501,7 +644,7 @@ export default function ReadingScreen() {
               </View>
               <View style={styles.footerDivider} />
               <Pressable 
-                onPress={() => {/* Toggle settings */}} 
+                onPress={() => {}} 
                 style={styles.footerButton}
               >
                 <Feather name="type" size={20} color={theme.text} />
