@@ -123,6 +123,11 @@ server/
 - December 2024: Implemented Bionic Reading mode
 - December 2024: Created Focus Mode with reading timer
 - December 2024: Added reading statistics and streaks
+- December 2024: **Advanced Scroll Modes**:
+  - **Auto-Scroll**: Automatic scrolling with adjustable speed (5-200 px/s), tap to play/pause
+  - **Tap-Scroll**: Improved line detection (50%+ visibility), configurable animation speed (50-1000ms)
+  - **Last Line Position**: Choose whether tapped line appears at top or center of screen
+  - **Safe Area Fix**: Text no longer overlaps system UI (status bar, navigation buttons)
 - December 2024: New award-level components (GlassCard, ProgressRing, etc.)
 - December 2024: Enhanced typography with letter spacing
 - December 2024: Reading mode presets
