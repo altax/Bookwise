@@ -118,8 +118,16 @@ server/
 4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
+- December 2024: **TAP-SCROLL MODE COMPLETE REWRITE**:
+  - Right tap zone now exactly 1/3 (33%) of screen width for universal device support
+  - New 2-phase scroll logic: 1) auto-scroll partial line into full view, 2) smooth scroll to top
+  - Yellow highlight with 0.5s fade-out animation (using Easing.out curve)
+  - Dynamic screen dimension handling for landscape/portrait orientation changes
+  - Manual scroll completely disabled in tap-scroll mode (scrollEnabled: false)
+  - Edge case handling: last page detection, single line on screen, variable font sizes
+  - 60fps performance maintained with Reanimated withTiming animations
 - December 2024: **Tap Zone & Settings Redesign**:
-  - 3-zone tap system: left (15%) = menu, center (70%) = nothing, right (15%) = tap scroll only in tap mode
+  - 3-zone tap system: left (15%) = menu, center (52%) = nothing, right (33%) = tap scroll only in tap mode
   - Removed unused top/bottom padding settings from ReadingContext and UI
   - Compact settings panel with live text preview showing real-time font size and line spacing changes
   - Tap scroll now supports both "Top" and "Center" target positions via settings
