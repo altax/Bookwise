@@ -195,10 +195,12 @@ export default function ReadingScreen() {
   }, [showUI, settings.animationsEnabled, triggerHaptic]);
 
   const openSettingsPanel = useCallback(() => {
+    setShowUI(true);
+    uiOpacity.value = withTiming(1, { duration: Motion.duration.fast });
     setShowSettingsPanel(true);
     settingsPanelTranslate.value = withTiming(0, { duration: 300 });
     triggerHaptic();
-  }, [settingsPanelTranslate, triggerHaptic]);
+  }, [settingsPanelTranslate, triggerHaptic, uiOpacity]);
 
   const closeSettingsPanel = useCallback(() => {
     settingsPanelTranslate.value = withTiming(SCREEN_HEIGHT, { duration: 250 });

@@ -22,6 +22,7 @@ import Animated, {
   Easing,
   withSpring,
 } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import type { ScrollMode, TapScrollLinePositionType } from "@/constants/theme";
@@ -542,7 +543,28 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const centerZoneWidth = SCREEN_WIDTH * 0.35;
   const rightZoneWidth = SCREEN_WIDTH * 0.5;
 
-  return (
+  const centerTapGesture = useMemo(() => {
+    return Gesture.Tap()
+      .maxDuration(200)
+      .onEnd((event) => {
+        const x = event.x;
+        const y = event.y;
+        const centerXStart = SCREEN_WIDTH * 0.25;
+        const centerXEnd = SCREEN_WIDTH * 0.75;
+        const centerYStart = SCREEN_HEIGHT * 0.25;
+        const centerYEnd = SCREEN_HEIGHT * 0.75;
+        
+        if (x >= centerXStart && x <= centerXEnd && y >= centerYStart && y <= centerYEnd) {
+          runOnJS(handleCenterTap)();
+        } else {
+          runOnJS(handleLeftTap)();
+        }
+      });
+  }, [handleCenterTap, handleLeftTap]);
+
+  const isSeamless = scrollMode === "seamless";
+
+  const containerContent = (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]} onLayout={handleViewportLayout}>
       <ScrollView
         ref={scrollViewRef}
@@ -580,7 +602,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
         </View>
       </ScrollView>
 
-      {(scrollMode === "tapScroll" || scrollMode === "autoScroll") ? (
+      {(scrollMode === "tapScroll" || scrollMode === "autoScroll") && (
         <View style={styles.tapZonesContainer} pointerEvents="box-none">
           <Pressable 
             style={[styles.tapZone, { width: leftZoneWidth }]} 
@@ -593,13 +615,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           <Pressable 
             style={[styles.tapZone, { width: rightZoneWidth }]} 
             onPress={handleRightTap}
-          />
-        </View>
-      ) : (
-        <View style={styles.centerTapZoneContainer} pointerEvents="box-none">
-          <Pressable 
-            style={styles.centerTapZone} 
-            onPress={handleCenterTap}
           />
         </View>
       )}
@@ -667,6 +682,16 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       )}
     </View>
   );
+
+  if (isSeamless) {
+    return (
+      <GestureDetector gesture={centerTapGesture}>
+        {containerContent}
+      </GestureDetector>
+    );
+  }
+
+  return containerContent;
 });
 
 UnifiedScrollReader.displayName = "UnifiedScrollReader";
@@ -702,18 +727,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   tapZone: {
-    height: "100%",
-  },
-  centerTapZoneContainer: {
-    position: "absolute",
-    top: "30%",
-    left: "25%",
-    right: "25%",
-    height: "40%",
-    zIndex: 10,
-  },
-  centerTapZone: {
-    width: "100%",
     height: "100%",
   },
   tapHintOverlay: {
