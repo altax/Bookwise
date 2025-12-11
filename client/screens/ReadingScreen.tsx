@@ -43,6 +43,7 @@ type ReadingRouteProp = RouteProp<RootStackParamList, "Reading">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const PROGRESS_BAR_HEIGHT = 30;
 
 const themeOptions: { mode: ThemeMode; label: string; bgColor: string }[] = [
   { mode: "light", label: "Day", bgColor: "#FAFAFA" },
@@ -179,9 +180,19 @@ export default function ReadingScreen() {
     }
   }, [settings.hapticFeedback]);
 
+  const pauseAutoScrollIfPlaying = useCallback(() => {
+    if (settings.scrollMode === "autoScroll" && readerRef.current?.isAutoScrolling()) {
+      readerRef.current.pauseAutoScroll();
+    }
+  }, [settings.scrollMode]);
+
   const toggleUI = useCallback(() => {
     const newShowUI = !showUI;
     setShowUI(newShowUI);
+    
+    if (newShowUI) {
+      pauseAutoScrollIfPlaying();
+    }
     
     if (settings.animationsEnabled) {
       uiOpacity.value = withTiming(newShowUI ? 1 : 0, { 
@@ -192,15 +203,16 @@ export default function ReadingScreen() {
     }
     
     triggerHaptic();
-  }, [showUI, settings.animationsEnabled, triggerHaptic]);
+  }, [showUI, settings.animationsEnabled, triggerHaptic, pauseAutoScrollIfPlaying]);
 
   const openSettingsPanel = useCallback(() => {
+    pauseAutoScrollIfPlaying();
     setShowUI(true);
     uiOpacity.value = withTiming(1, { duration: Motion.duration.fast });
     setShowSettingsPanel(true);
     settingsPanelTranslate.value = withTiming(0, { duration: 300 });
     triggerHaptic();
-  }, [settingsPanelTranslate, triggerHaptic, uiOpacity]);
+  }, [settingsPanelTranslate, triggerHaptic, uiOpacity, pauseAutoScrollIfPlaying]);
 
   const closeSettingsPanel = useCallback(() => {
     settingsPanelTranslate.value = withTiming(SCREEN_HEIGHT, { duration: 250 });
@@ -414,6 +426,8 @@ export default function ReadingScreen() {
           readerPaddingTop: settings.readerPaddingTop,
           readerPaddingBottom: settings.readerPaddingBottom,
         }}
+        progressBarHeight={settings.showReadingProgress ? PROGRESS_BAR_HEIGHT : 0}
+        pauseAutoScroll={pauseAutoScrollIfPlaying}
       />
     );
   };
@@ -705,7 +719,11 @@ export default function ReadingScreen() {
         <View
           style={[
             styles.progressContainer,
-            { bottom: insets.bottom + Spacing.lg },
+            { 
+              bottom: 0,
+              paddingBottom: insets.bottom + Spacing.sm,
+              backgroundColor: theme.backgroundRoot,
+            },
           ]}
         >
           <View style={[styles.progressBar, { backgroundColor: theme.backgroundSecondary }]}>
@@ -865,10 +883,12 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     position: "absolute",
-    left: Spacing.xl,
-    right: Spacing.xl,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.sm,
     gap: Spacing.md,
   },
   progressBar: {

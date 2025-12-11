@@ -62,6 +62,8 @@ interface UnifiedScrollReaderProps {
   initialPosition?: number;
   onAutoScrollStateChange?: (isPlaying: boolean) => void;
   showTapHint?: boolean;
+  progressBarHeight?: number;
+  pauseAutoScroll?: () => void;
 }
 
 export interface UnifiedScrollReaderRef {
@@ -69,6 +71,7 @@ export interface UnifiedScrollReaderRef {
   getCurrentPosition: () => number;
   toggleAutoScroll: () => void;
   isAutoScrolling: () => boolean;
+  pauseAutoScroll: () => void;
 }
 
 interface MeasuredLine {
@@ -94,6 +97,8 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   initialPosition = 0,
   onAutoScrollStateChange,
   showTapHint = true,
+  progressBarHeight = 0,
+  pauseAutoScroll: externalPauseAutoScroll,
 }, ref) => {
   const insets = useSafeAreaInsets();
   const animatedScrollViewRef = useAnimatedRef<Animated.ScrollView>();
@@ -129,7 +134,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const customPaddingTop = settings.readerPaddingTop ?? 40;
   const customPaddingBottom = settings.readerPaddingBottom ?? 60;
   const paddingTop = insets.top + customPaddingTop;
-  const paddingBottom = insets.bottom + customPaddingBottom;
+  const paddingBottom = insets.bottom + customPaddingBottom + progressBarHeight;
   
   const autoScrollSpeed = Math.max(5, Math.min(settings.autoScrollSpeed || 50, 200));
   const tapScrollAnimationSpeed = Math.max(50, Math.min(settings.tapScrollAnimationSpeed || 300, 1000));
@@ -215,13 +220,42 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
   }, []);
 
+  const findMiddleVisibleLineIndex = useCallback((): number => {
+    const lines = measuredLinesRef.current;
+    if (lines.length === 0) return -1;
+    
+    const scrollOffset = currentScrollY;
+    const textAreaTop = paddingTop + textContainerY;
+    const visibleTop = scrollOffset + paddingTop;
+    const visibleBottom = scrollOffset + viewportHeight - paddingBottom;
+    const visibleMiddle = (visibleTop + visibleBottom) / 2;
+    
+    let closestIndex = -1;
+    let closestDistance = Infinity;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.text.trim().length === 0) continue;
+      
+      const lineAbsoluteTop = textAreaTop + line.y;
+      const lineCenter = lineAbsoluteTop + line.height / 2;
+      const distance = Math.abs(lineCenter - visibleMiddle);
+      
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = i;
+      }
+    }
+    
+    return closestIndex;
+  }, [currentScrollY, viewportHeight, paddingTop, paddingBottom, textContainerY]);
+
   const findLastVisibleLineIndex = useCallback((): number => {
     const lines = measuredLinesRef.current;
     if (lines.length === 0) return -1;
     
     const scrollOffset = currentScrollY;
     const textAreaTop = paddingTop + textContainerY;
-    
     const visibleBottom = scrollOffset + viewportHeight - paddingBottom;
     
     let lastVisibleIndex = -1;
@@ -294,13 +328,22 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       setTimeout(() => setShowTapHintOverlay(false), 200);
     }
     
-    const lastVisibleIndex = findLastVisibleLineIndex();
     const lines = measuredLinesRef.current;
+    let targetLineIndex: number;
     
-    if (lastVisibleIndex >= 0 && lastVisibleIndex < lines.length - 1) {
-      scrollToLineIndex(lastVisibleIndex, true);
+    if (tapScrollLinePosition === "center") {
+      targetLineIndex = findMiddleVisibleLineIndex();
+      if (targetLineIndex < 0) {
+        targetLineIndex = findLastVisibleLineIndex();
+      }
+    } else {
+      targetLineIndex = findLastVisibleLineIndex();
     }
-  }, [findLastVisibleLineIndex, scrollToLineIndex, showTapHintOverlay, tapHintOpacity]);
+    
+    if (targetLineIndex >= 0 && targetLineIndex < lines.length - 1) {
+      scrollToLineIndex(targetLineIndex, true);
+    }
+  }, [findLastVisibleLineIndex, findMiddleVisibleLineIndex, scrollToLineIndex, showTapHintOverlay, tapHintOpacity, tapScrollLinePosition]);
 
   const updateScrollYFromWorklet = useCallback((y: number) => {
     setCurrentScrollY(y);
@@ -384,8 +427,11 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [onCenterTap]);
 
   const handleLeftTap = useCallback(() => {
+    if (scrollMode === "autoScroll" && isAutoScrollPlaying) {
+      stopAutoScroll();
+    }
     onTap?.();
-  }, [onTap]);
+  }, [onTap, scrollMode, isAutoScrollPlaying, stopAutoScroll]);
 
   const scrollToPosition = useCallback((position: number) => {
     if (contentHeight <= 0) return;
@@ -408,7 +454,8 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     getCurrentPosition,
     toggleAutoScroll,
     isAutoScrolling: () => isAutoScrollPlaying,
-  }), [scrollToPosition, getCurrentPosition, toggleAutoScroll, isAutoScrollPlaying]);
+    pauseAutoScroll: stopAutoScroll,
+  }), [scrollToPosition, getCurrentPosition, toggleAutoScroll, isAutoScrollPlaying, stopAutoScroll]);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
@@ -636,11 +683,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
             onPress={handleLeftTap}
           />
           <Pressable 
-            style={[styles.tapZone, { width: centerZoneWidth }]} 
-            onPress={handleCenterTap}
-          />
-          <Pressable 
-            style={[styles.tapZone, { width: rightZoneWidth }]} 
+            style={[styles.tapZone, { width: centerZoneWidth + rightZoneWidth }]} 
             onPress={handleRightTap}
           />
         </View>
@@ -648,19 +691,19 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
 
       {showTapHintOverlay && scrollMode === "tapScroll" && (
         <Animated.View style={[styles.tapHintOverlay, tapHintAnimatedStyle]} pointerEvents="none">
+          <View style={[styles.tapHintLeft, { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]}>
+            <View style={styles.tapHintContent}>
+              <Feather name="menu" size={24} color={theme.secondaryText} />
+              <Text style={[styles.tapHintText, { color: theme.secondaryText }]}>
+                Menu
+              </Text>
+            </View>
+          </View>
           <View style={[styles.tapHintRight, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
             <View style={styles.tapHintContent}>
               <Feather name="chevrons-down" size={32} color={theme.text} />
               <Text style={[styles.tapHintText, { color: theme.text }]}>
                 Tap here to scroll
-              </Text>
-            </View>
-          </View>
-          <View style={[styles.tapHintCenter, { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]}>
-            <View style={styles.tapHintContent}>
-              <Feather name="settings" size={24} color={theme.secondaryText} />
-              <Text style={[styles.tapHintText, { color: theme.secondaryText }]}>
-                Settings
               </Text>
             </View>
           </View>
@@ -761,21 +804,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     zIndex: 20,
   },
+  tapHintLeft: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: "15%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   tapHintRight: {
     position: "absolute",
     right: 0,
     top: 0,
     bottom: 0,
-    width: "50%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tapHintCenter: {
-    position: "absolute",
-    left: "15%",
-    top: 0,
-    bottom: 0,
-    width: "35%",
+    width: "85%",
     justifyContent: "center",
     alignItems: "center",
   },
