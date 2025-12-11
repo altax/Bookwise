@@ -1,0 +1,61 @@
+Нашей задачей было: 
+
+## Обзор проекта
+Приложение — минималистичная читалка книг, фокусирующаяся на простоте и удобстве. Дизайн вдохновлён топовыми работами Mobbin (минимальные навигации, gesture-based controls), Behance (airy светлые тона, плавные анимации), Awwwards (immersive full-screen чтение) и Component Gallery (reusable adaptive компоненты). UI/UX создаёт уникальный опыт: zero-clutter интерфейс с интуитивными жестами, светлой палитрой (#FFFFFF, #F5F5F5, акценты #4A90E2), кастомными шрифтами (Inter/SF Pro) и микроанимациями (Lottie/Reanimated) [1][2][3][4].
+
+Цели: максимальное погружение в чтение, лёгкий импорт книг, персонализация без отвлекающих элементов. Технологии: Expo Router для навигации, React Native Paper/Tamagui для компонентов, Reanimated для gesture/анимаций, AsyncStorage для локального хранения [3][4].
+
+## Must-have функции
+### Поддержка форматов
+- Импорт EPUB, PDF, MOBI, TXT через File Picker (expo-document-picker) или drag-and-drop в будущем.
+- Парсинг с react-native-epub-reader или pdf.js-expo; lazy loading страниц для производительности.
+- Автоопределение метаданных (название, автор, обложка) с fallback на ручной ввод [5][3].
+
+### Настройка интерфейса
+- Слайдеры для размера шрифта (12-32pt), межстрочного интервала (1.0-2.0), отступов.
+- Темы: День (светлая), Ночь (тёмная с #1A1A1A), Сепия; авто-переключение по системным настройкам.
+- 10+ шрифтов (системные + Google Fonts via expo-font); pinch-to-zoom для PDF [6][7][2].
+
+### Навигация и чтение
+- Жесты: свайп для страниц, double-tap увеличение, edge-swipe меню.
+- Прогресс-бар внизу (проценты + время чтения на основе скорости пользователя).
+- Оглавление, поиск по тексту (highlight + regex), переход по главам via tap на боковую панель [5][8].
+
+### Закладки и заметки
+- Long-press для выделения текста → меню: Закладка (heart icon), Заметка (inline editable), Поделиться.
+- Библиотека: grid/list view книг с обложками, сортировка (по дате/алфавиту), поиск.
+- Экспорт: JSON/CSV заметок/закладок; share via expo-sharing [6][8].
+
+### Синхронизация
+- Локальное хранение прогресса/заметок в AsyncStorage + expo-sqlite для оффлайн.
+- Подготовка к облаку: Supabase hooks для user auth/sync (email/password или magic links) .
+- Конфликт-резолв: last-write-wins с уведомлением о изменениях [5].
+
+## UI/UX спецификация
+### Цвета и типографика
+| Элемент | Цвета (primary/dark) | Шрифт | Размер |
+|---------|----------------------|-------|--------|
+| Фон чтения | #FFFFFF / #1A1A1A | Inter Regular | 16-24pt |
+| Текст | #333333 / #E0E0E0 | Inter Medium | body |
+| Акценты (прогресс, выделение) | #4A90E2 / #5DADE2 | SF Pro Bold | 14pt |
+| Меню/иконки | #666666 / #B0B0B0 | Icons: Feather | 24px [2][3] |
+
+### Экраны и flows
+- **Splash/Onboarding**: Минимальный слайдер (импорт книги → настройки → чтение); skip button.
+- **Библиотека**: Masonry grid обложек (expo-image с blurhash), FAB+ для импорта; swipe-to-delete.
+- **Чтение**: Full-screen текст с bottom-sheet меню (настройки/закладки); haptic feedback на жестах.
+- **Настройки**: TabView (темы, шрифты, импорт); глобальный search bar.
+- Анимации: Fade-in страниц, scale on tap, progress arc fill [1][4].
+
+### Accessibility
+- Dynamic Type (expo-haptics), VoiceOver labels, high contrast toggle.
+- Reduce motion опция; ARIA-like props на компонентах [9][4].
+
+## Технические требования
+- **Структура**: Expo Router tabs (Library, Reading, Settings); monorepo-ready.
+- **Производительность**: Memoization (useMemo), virtualized lists (FlashList), image caching.
+- **Тестирование**: Jest + Detox; error boundaries everywhere.
+- **Deployment**: EAS Build; App Store/Play Store icons в стиле Behance (minimal gradients).
+- **Масштабируемость**: Modular hooks (useBook, useProgress); TypeScript strict .
+
+Мы что-то сделали, что-то нет. Нужно продолжить на чес прервались
