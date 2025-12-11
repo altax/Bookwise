@@ -580,7 +580,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
         </View>
       </ScrollView>
 
-      {(scrollMode === "tapScroll" || scrollMode === "autoScroll") && (
+      {(scrollMode === "tapScroll" || scrollMode === "autoScroll") ? (
         <View style={styles.tapZonesContainer} pointerEvents="box-none">
           <Pressable 
             style={[styles.tapZone, { width: leftZoneWidth }]} 
@@ -593,6 +593,13 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           <Pressable 
             style={[styles.tapZone, { width: rightZoneWidth }]} 
             onPress={handleRightTap}
+          />
+        </View>
+      ) : (
+        <View style={styles.centerTapZoneContainer} pointerEvents="box-none">
+          <Pressable 
+            style={styles.centerTapZone} 
+            onPress={handleCenterTap}
           />
         </View>
       )}
@@ -695,6 +702,18 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   tapZone: {
+    height: "100%",
+  },
+  centerTapZoneContainer: {
+    position: "absolute",
+    top: "30%",
+    left: "25%",
+    right: "25%",
+    height: "40%",
+    zIndex: 10,
+  },
+  centerTapZone: {
+    width: "100%",
     height: "100%",
   },
   tapHintOverlay: {
