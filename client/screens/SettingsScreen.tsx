@@ -8,22 +8,27 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode } from "@/constants/theme";
+import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useReading } from "@/contexts/ReadingContext";
+import { ProgressRing } from "@/components/ProgressRing";
 
 interface ThemeOption {
   mode: ThemeMode;
   label: string;
   bgColor: string;
   textColor: string;
+  accentColor: string;
 }
 
 const themeOptions: ThemeOption[] = [
-  { mode: "light", label: "Day", bgColor: "#FFFFFF", textColor: "#333333" },
-  { mode: "dark", label: "Night", bgColor: "#1A1A1A", textColor: "#E0E0E0" },
-  { mode: "sepia", label: "Sepia", bgColor: "#F4ECD8", textColor: "#5B4636" },
+  { mode: "light", label: "Day", bgColor: "#FAFAFA", textColor: "#1A1A2E", accentColor: "#6366F1" },
+  { mode: "dark", label: "Night", bgColor: "#0A0A0F", textColor: "#F5F5F7", accentColor: "#818CF8" },
+  { mode: "sepia", label: "Paper", bgColor: "#F8F4EC", textColor: "#3D2E1F", accentColor: "#A0785C" },
+  { mode: "dusk", label: "Dusk", bgColor: "#1A1625", textColor: "#E8E4F0", accentColor: "#B794F6" },
+  { mode: "midnight", label: "AMOLED", bgColor: "#000000", textColor: "#E5E5E5", accentColor: "#3B82F6" },
+  { mode: "forest", label: "Forest", bgColor: "#0F1A14", textColor: "#E8EDE8", accentColor: "#4ADE80" },
 ];
 
 export default function SettingsScreen() {
@@ -31,22 +36,42 @@ export default function SettingsScreen() {
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
-  const { settings, updateSettings, exportData, books } = useReading();
+  const { settings, updateSettings, exportData, books, stats, applyReadingMode } = useReading();
   const [isExporting, setIsExporting] = useState(false);
 
   const handleThemeChange = (mode: ThemeMode) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (settings.hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
     updateSettings({ themeMode: mode, autoTheme: false });
   };
 
   const handleAutoThemeToggle = (value: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (settings.hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
     updateSettings({ autoTheme: value });
   };
 
   const handleFontChange = (fontValue: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (settings.hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
     updateSettings({ fontFamily: fontValue });
+  };
+
+  const handleReadingModeChange = (mode: ReadingMode) => {
+    if (settings.hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    applyReadingMode(mode);
+  };
+
+  const handleToggle = (key: keyof typeof settings, value: boolean) => {
+    if (settings.hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    updateSettings({ [key]: value });
   };
 
   const handleExportJSON = async () => {
@@ -64,7 +89,9 @@ export default function SettingsScreen() {
         title: "Bookwise Export (JSON)",
       });
       
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (settings.hapticFeedback) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
     } catch (error) {
       console.error("Export error:", error);
       Alert.alert("Export Failed", "Could not export your data. Please try again.");
@@ -100,7 +127,9 @@ export default function SettingsScreen() {
         title: "Bookwise Export (CSV)",
       });
       
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (settings.hapticFeedback) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
     } catch (error) {
       console.error("Export error:", error);
       Alert.alert("Export Failed", "Could not export your data. Please try again.");
@@ -111,6 +140,8 @@ export default function SettingsScreen() {
 
   const totalBookmarks = books.reduce((acc, book) => acc + book.bookmarks.length, 0);
   const totalNotes = books.reduce((acc, book) => acc + book.notes.length, 0);
+  const totalReadingMinutes = Math.round(stats.totalReadingTime / 60);
+  const dailyGoalProgress = Math.min(100, (stats.todayReadingTime / 60 / settings.dailyGoal) * 100);
 
   return (
     <ThemedView style={styles.container}>
@@ -127,7 +158,87 @@ export default function SettingsScreen() {
       >
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
-            Reading
+            Today's Progress
+          </ThemedText>
+
+          <View style={[styles.card, styles.progressCard, { backgroundColor: theme.backgroundDefault }]}>
+            <ProgressRing 
+              progress={dailyGoalProgress} 
+              size={100}
+              strokeWidth={8}
+              label="Daily Goal"
+            />
+            <View style={styles.progressStats}>
+              <View style={styles.progressStatItem}>
+                <ThemedText type="h3" style={{ color: theme.accent }}>
+                  {Math.round(stats.todayReadingTime / 60)}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                  min today
+                </ThemedText>
+              </View>
+              <View style={styles.progressStatItem}>
+                <ThemedText type="h3" style={{ color: theme.accent }}>
+                  {stats.currentStreak}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                  day streak
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>
+            Reading Mode
+          </ThemedText>
+
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.readingModes}
+          >
+            {(Object.keys(ReadingModes) as ReadingMode[]).map((mode) => {
+              const modeData = ReadingModes[mode];
+              const isSelected = settings.readingMode === mode;
+              return (
+                <Pressable
+                  key={mode}
+                  style={[
+                    styles.readingModeCard,
+                    {
+                      backgroundColor: isSelected ? theme.accent : theme.backgroundDefault,
+                      borderColor: isSelected ? theme.accent : theme.border,
+                    },
+                  ]}
+                  onPress={() => handleReadingModeChange(mode)}
+                >
+                  <ThemedText
+                    style={[
+                      styles.readingModeName,
+                      { color: isSelected ? "#FFFFFF" : theme.text },
+                    ]}
+                  >
+                    {modeData.name}
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.readingModeDesc,
+                      { color: isSelected ? "rgba(255,255,255,0.8)" : theme.secondaryText },
+                    ]}
+                  >
+                    {modeData.description}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>
+            Typography
           </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
@@ -171,17 +282,18 @@ export default function SettingsScreen() {
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.settingRow}>
-              <ThemedText>Margins</ThemedText>
+              <ThemedText>Letter Spacing</ThemedText>
               <ThemedText style={{ color: theme.secondaryText }}>
-                {Math.round(settings.marginHorizontal)}px
+                {(settings.letterSpacing || 0).toFixed(1)}
               </ThemedText>
             </View>
             <Slider
               style={styles.slider}
-              minimumValue={8}
-              maximumValue={48}
-              value={settings.marginHorizontal}
-              onValueChange={(value) => updateSettings({ marginHorizontal: value })}
+              minimumValue={ReadingDefaults.minLetterSpacing}
+              maximumValue={ReadingDefaults.maxLetterSpacing}
+              step={0.1}
+              value={settings.letterSpacing || 0}
+              onValueChange={(value) => updateSettings({ letterSpacing: value })}
               minimumTrackTintColor={theme.accent}
               maximumTrackTintColor={theme.backgroundTertiary}
               thumbTintColor={theme.accent}
@@ -226,6 +338,72 @@ export default function SettingsScreen() {
 
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
+            Reading Features
+          </ThemedText>
+
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLabelRow}>
+                <Feather name="zap" size={20} color={theme.text} />
+                <View>
+                  <ThemedText style={styles.settingLabel}>Bionic Reading</ThemedText>
+                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                    Bold first half of words for faster reading
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={settings.bionicReading}
+                onValueChange={(value) => handleToggle("bionicReading", value)}
+                trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLabelRow}>
+                <Feather name="target" size={20} color={theme.text} />
+                <View>
+                  <ThemedText style={styles.settingLabel}>Focus Mode</ThemedText>
+                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                    Minimal UI with reading timer
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={settings.focusMode}
+                onValueChange={(value) => handleToggle("focusMode", value)}
+                trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLabelRow}>
+                <Feather name="smartphone" size={20} color={theme.text} />
+                <View>
+                  <ThemedText style={styles.settingLabel}>Haptic Feedback</ThemedText>
+                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                    Vibration on interactions
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={settings.hapticFeedback}
+                onValueChange={(value) => handleToggle("hapticFeedback", value)}
+                trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>
             Theme
           </ThemedText>
 
@@ -242,12 +420,12 @@ export default function SettingsScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
-            <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+            <ThemedText style={[styles.settingHint, { color: theme.secondaryText, marginTop: Spacing.xs }]}>
               Follow system appearance
             </ThemedText>
           </View>
 
-          <View style={styles.themeOptions}>
+          <View style={styles.themeGrid}>
             {themeOptions.map((option) => (
               <Pressable
                 key={option.mode}
@@ -255,10 +433,10 @@ export default function SettingsScreen() {
                   styles.themeCard,
                   {
                     backgroundColor: option.bgColor,
-                    borderWidth: !settings.autoTheme && settings.themeMode === option.mode ? 3 : 1,
+                    borderWidth: !settings.autoTheme && settings.themeMode === option.mode ? 2 : 1,
                     borderColor:
                       !settings.autoTheme && settings.themeMode === option.mode
-                        ? theme.accent
+                        ? option.accentColor
                         : theme.border,
                     opacity: settings.autoTheme ? 0.5 : 1,
                   },
@@ -276,13 +454,7 @@ export default function SettingsScreen() {
                   <View
                     style={[
                       styles.themePreviewLine,
-                      { backgroundColor: option.textColor, width: "60%" },
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.themePreviewLine,
-                      { backgroundColor: option.textColor, width: "70%" },
+                      { backgroundColor: option.textColor, width: "50%" },
                     ]}
                   />
                 </View>
@@ -291,11 +463,11 @@ export default function SettingsScreen() {
                 >
                   {option.label}
                 </ThemedText>
-                {!settings.autoTheme && settings.themeMode === option.mode ? (
-                  <View style={[styles.checkmark, { backgroundColor: theme.accent }]}>
-                    <Feather name="check" size={14} color="#FFFFFF" />
+                {!settings.autoTheme && settings.themeMode === option.mode && (
+                  <View style={[styles.checkmark, { backgroundColor: option.accentColor }]}>
+                    <Feather name="check" size={12} color="#FFFFFF" />
                   </View>
-                ) : null}
+                )}
               </Pressable>
             ))}
           </View>
@@ -303,17 +475,25 @@ export default function SettingsScreen() {
 
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
-            Data
+            Statistics
           </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.statsRow}>
+            <View style={styles.statsGrid}>
               <View style={styles.statItem}>
                 <ThemedText type="h3" style={{ color: theme.accent }}>
                   {books.length}
                 </ThemedText>
                 <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
                   Books
+                </ThemedText>
+              </View>
+              <View style={styles.statItem}>
+                <ThemedText type="h3" style={{ color: theme.accent }}>
+                  {totalReadingMinutes}
+                </ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
+                  Minutes Read
                 </ThemedText>
               </View>
               <View style={styles.statItem}>
@@ -334,6 +514,12 @@ export default function SettingsScreen() {
               </View>
             </View>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>
+            Data
+          </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
             <ThemedText style={styles.cardLabel}>Export</ThemedText>
@@ -381,7 +567,7 @@ export default function SettingsScreen() {
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.aboutRow}>
               <ThemedText>Version</ThemedText>
-              <ThemedText style={{ color: theme.secondaryText }}>1.0.0</ThemedText>
+              <ThemedText style={{ color: theme.secondaryText }}>2.0.0</ThemedText>
             </View>
           </View>
         </View>
@@ -406,7 +592,19 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: Spacing.lg,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
+  },
+  progressCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xl,
+  },
+  progressStats: {
+    flex: 1,
+    gap: Spacing.lg,
+  },
+  progressStatItem: {
+    alignItems: "flex-start",
   },
   cardLabel: {
     marginBottom: Spacing.md,
@@ -419,18 +617,36 @@ const styles = StyleSheet.create({
   settingLabelRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
+    gap: Spacing.md,
+    flex: 1,
   },
   settingLabel: {
-    marginLeft: Spacing.xs,
+    fontWeight: "500",
   },
   settingHint: {
     fontSize: 12,
-    marginTop: Spacing.xs,
   },
   slider: {
     marginTop: Spacing.md,
     height: 40,
+  },
+  readingModes: {
+    gap: Spacing.md,
+    paddingRight: Spacing.lg,
+  },
+  readingModeCard: {
+    width: 140,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  readingModeName: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  readingModeDesc: {
+    fontSize: 12,
   },
   fontOptions: {
     flexDirection: "row",
@@ -446,50 +662,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  themeOptions: {
+  themeGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: Spacing.md,
   },
   themeCard: {
-    flex: 1,
-    aspectRatio: 1,
+    width: "30%",
+    aspectRatio: 0.85,
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
+    padding: Spacing.sm,
     justifyContent: "space-between",
   },
   themePreview: {
-    gap: Spacing.xs,
+    gap: 4,
+    marginTop: Spacing.xs,
   },
   themePreviewLine: {
-    height: 4,
-    borderRadius: 2,
-    opacity: 0.3,
+    height: 3,
+    borderRadius: 1.5,
+    opacity: 0.4,
   },
   themeLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     textAlign: "center",
   },
   checkmark: {
     position: "absolute",
-    top: Spacing.sm,
-    right: Spacing.sm,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    top: 6,
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     justifyContent: "center",
     alignItems: "center",
   },
-  statsRow: {
+  statsGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-around",
+    gap: Spacing.lg,
   },
   statItem: {
     alignItems: "center",
+    minWidth: 70,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     marginTop: Spacing.xs,
+    textAlign: "center",
   },
   exportButtons: {
     flexDirection: "row",

@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ReadingDefaults, ThemeMode, AvailableFonts } from "@/constants/theme";
+import { ReadingDefaults, ThemeMode, AvailableFonts, ReadingMode, ReadingModes } from "@/constants/theme";
 
 export interface Book {
   id: string;
@@ -16,6 +16,8 @@ export interface Book {
   addedAt: number;
   bookmarks: Bookmark[];
   notes: Note[];
+  totalReadingTime: number;
+  sessions: ReadingSession[];
 }
 
 export interface Bookmark {
@@ -36,22 +38,55 @@ export interface Note {
   updatedAt: number;
 }
 
+export interface ReadingSession {
+  id: string;
+  startTime: number;
+  endTime: number;
+  pagesRead: number;
+  wordsRead: number;
+}
+
+export interface ReadingStats {
+  totalBooksRead: number;
+  totalPagesRead: number;
+  totalReadingTime: number;
+  averageReadingSpeed: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastReadDate: string | null;
+  dailyGoal: number;
+  todayReadingTime: number;
+  weeklyReadingTime: number[];
+}
+
 interface ReadingSettings {
   fontSize: number;
   lineSpacing: number;
   marginHorizontal: number;
+  letterSpacing: number;
+  paragraphSpacing: number;
   fontFamily: string;
   themeMode: ThemeMode;
   autoTheme: boolean;
   hasSeenOnboarding: boolean;
+  bionicReading: boolean;
+  focusMode: boolean;
+  readingMode: ReadingMode;
+  showReadingProgress: boolean;
+  showTimeEstimate: boolean;
+  hapticFeedback: boolean;
+  animationsEnabled: boolean;
+  dailyGoal: number;
+  textAlignment: "left" | "justify";
 }
 
 interface ReadingContextType {
   books: Book[];
   currentBook: Book | null;
   settings: ReadingSettings;
+  stats: ReadingStats;
   isLoading: boolean;
-  addBook: (book: Omit<Book, "id" | "progress" | "currentPage" | "lastRead" | "addedAt" | "bookmarks" | "notes">) => Promise<void>;
+  addBook: (book: Omit<Book, "id" | "progress" | "currentPage" | "lastRead" | "addedAt" | "bookmarks" | "notes" | "totalReadingTime" | "sessions">) => Promise<void>;
   removeBook: (id: string) => Promise<void>;
   setCurrentBook: (book: Book | null) => void;
   updateBookProgress: (id: string, currentPage: number, totalPages: number) => Promise<void>;
@@ -62,38 +97,93 @@ interface ReadingContextType {
   removeNote: (bookId: string, noteId: string) => Promise<void>;
   updateSettings: (newSettings: Partial<ReadingSettings>) => Promise<void>;
   exportData: (bookId?: string) => Promise<string>;
+  startReadingSession: (bookId: string) => void;
+  endReadingSession: (bookId: string, pagesRead: number, wordsRead: number) => Promise<void>;
+  updateStats: (updates: Partial<ReadingStats>) => Promise<void>;
+  applyReadingMode: (mode: ReadingMode) => Promise<void>;
 }
 
 const defaultSettings: ReadingSettings = {
   fontSize: ReadingDefaults.fontSize,
   lineSpacing: ReadingDefaults.lineSpacing,
   marginHorizontal: ReadingDefaults.marginHorizontal,
+  letterSpacing: ReadingDefaults.letterSpacing,
+  paragraphSpacing: ReadingDefaults.paragraphSpacing,
   fontFamily: AvailableFonts[0].value,
   themeMode: "light",
   autoTheme: true,
   hasSeenOnboarding: false,
+  bionicReading: false,
+  focusMode: false,
+  readingMode: "standard",
+  showReadingProgress: true,
+  showTimeEstimate: true,
+  hapticFeedback: true,
+  animationsEnabled: true,
+  dailyGoal: 30,
+  textAlignment: "left",
+};
+
+const defaultStats: ReadingStats = {
+  totalBooksRead: 0,
+  totalPagesRead: 0,
+  totalReadingTime: 0,
+  averageReadingSpeed: 250,
+  currentStreak: 0,
+  longestStreak: 0,
+  lastReadDate: null,
+  dailyGoal: 30,
+  todayReadingTime: 0,
+  weeklyReadingTime: [0, 0, 0, 0, 0, 0, 0],
 };
 
 const ReadingContext = createContext<ReadingContextType | undefined>(undefined);
 
 const BOOKS_STORAGE_KEY = "@bookwise_books";
 const SETTINGS_STORAGE_KEY = "@bookwise_settings";
+const STATS_STORAGE_KEY = "@bookwise_stats";
 
 export function ReadingProvider({ children }: { children: ReactNode }) {
   const [books, setBooks] = useState<Book[]>([]);
   const [currentBook, setCurrentBook] = useState<Book | null>(null);
   const [settings, setSettings] = useState<ReadingSettings>(defaultSettings);
+  const [stats, setStats] = useState<ReadingStats>(defaultStats);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeSession, setActiveSession] = useState<{ bookId: string; startTime: number } | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    updateDailyStats();
+  }, []);
+
+  const updateDailyStats = useCallback(() => {
+    const today = new Date().toDateString();
+    if (stats.lastReadDate !== today) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      if (stats.lastReadDate === yesterday.toDateString()) {
+      } else if (stats.lastReadDate) {
+        setStats(prev => ({ ...prev, currentStreak: 0 }));
+      }
+      
+      setStats(prev => ({
+        ...prev,
+        todayReadingTime: 0,
+        weeklyReadingTime: [...prev.weeklyReadingTime.slice(1), 0],
+      }));
+    }
+  }, [stats.lastReadDate]);
+
   const loadData = async () => {
     try {
-      const [booksData, settingsData] = await Promise.all([
+      const [booksData, settingsData, statsData] = await Promise.all([
         AsyncStorage.getItem(BOOKS_STORAGE_KEY),
         AsyncStorage.getItem(SETTINGS_STORAGE_KEY),
+        AsyncStorage.getItem(STATS_STORAGE_KEY),
       ]);
 
       if (booksData) {
@@ -101,11 +191,16 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
         const migratedBooks = parsedBooks.map((book: Book) => ({
           ...book,
           notes: book.notes || [],
+          totalReadingTime: book.totalReadingTime || 0,
+          sessions: book.sessions || [],
         }));
         setBooks(migratedBooks);
       }
       if (settingsData) {
         setSettings({ ...defaultSettings, ...JSON.parse(settingsData) });
+      }
+      if (statsData) {
+        setStats({ ...defaultStats, ...JSON.parse(statsData) });
       }
     } catch (error) {
       console.error("Failed to load data:", error);
@@ -130,7 +225,15 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addBook = async (bookData: Omit<Book, "id" | "progress" | "currentPage" | "lastRead" | "addedAt" | "bookmarks" | "notes">) => {
+  const saveStats = async (newStats: ReadingStats) => {
+    try {
+      await AsyncStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(newStats));
+    } catch (error) {
+      console.error("Failed to save stats:", error);
+    }
+  };
+
+  const addBook = async (bookData: Omit<Book, "id" | "progress" | "currentPage" | "lastRead" | "addedAt" | "bookmarks" | "notes" | "totalReadingTime" | "sessions">) => {
     const newBook: Book = {
       ...bookData,
       id: Date.now().toString(),
@@ -140,6 +243,8 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
       addedAt: Date.now(),
       bookmarks: [],
       notes: [],
+      totalReadingTime: 0,
+      sessions: [],
     };
     const newBooks = [newBook, ...books];
     setBooks(newBooks);
@@ -269,6 +374,7 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
       title: book.title,
       author: book.author,
       progress: `${Math.round(book.progress)}%`,
+      totalReadingTime: `${Math.round(book.totalReadingTime / 60)} minutes`,
       bookmarks: book.bookmarks.map((b) => ({
         page: b.page,
         createdAt: new Date(b.createdAt).toISOString(),
@@ -290,12 +396,94 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
     await saveSettings(updated);
   };
 
+  const startReadingSession = (bookId: string) => {
+    setActiveSession({ bookId, startTime: Date.now() });
+  };
+
+  const endReadingSession = async (bookId: string, pagesRead: number, wordsRead: number) => {
+    if (!activeSession || activeSession.bookId !== bookId) return;
+
+    const endTime = Date.now();
+    const duration = (endTime - activeSession.startTime) / 1000;
+
+    const session: ReadingSession = {
+      id: Date.now().toString(),
+      startTime: activeSession.startTime,
+      endTime,
+      pagesRead,
+      wordsRead,
+    };
+
+    const newBooks = books.map((book) =>
+      book.id === bookId
+        ? {
+            ...book,
+            totalReadingTime: book.totalReadingTime + duration,
+            sessions: [...book.sessions, session],
+          }
+        : book
+    );
+    setBooks(newBooks);
+    await saveBooks(newBooks);
+
+    const today = new Date().toDateString();
+    const newTodayTime = stats.todayReadingTime + duration;
+    const newWeeklyTime = [...stats.weeklyReadingTime];
+    newWeeklyTime[6] = (newWeeklyTime[6] || 0) + duration;
+
+    let newStreak = stats.currentStreak;
+    if (stats.lastReadDate !== today) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (stats.lastReadDate === yesterday.toDateString() || !stats.lastReadDate) {
+        newStreak = stats.currentStreak + 1;
+      } else {
+        newStreak = 1;
+      }
+    }
+
+    const newStats: ReadingStats = {
+      ...stats,
+      totalPagesRead: stats.totalPagesRead + pagesRead,
+      totalReadingTime: stats.totalReadingTime + duration,
+      todayReadingTime: newTodayTime,
+      weeklyReadingTime: newWeeklyTime,
+      lastReadDate: today,
+      currentStreak: newStreak,
+      longestStreak: Math.max(stats.longestStreak, newStreak),
+      averageReadingSpeed: wordsRead > 0 && duration > 0 
+        ? Math.round(wordsRead / (duration / 60))
+        : stats.averageReadingSpeed,
+    };
+    setStats(newStats);
+    await saveStats(newStats);
+
+    setActiveSession(null);
+  };
+
+  const updateStats = async (updates: Partial<ReadingStats>) => {
+    const newStats = { ...stats, ...updates };
+    setStats(newStats);
+    await saveStats(newStats);
+  };
+
+  const applyReadingMode = async (mode: ReadingMode) => {
+    const modeSettings = ReadingModes[mode];
+    await updateSettings({
+      readingMode: mode,
+      fontSize: modeSettings.fontSize,
+      lineSpacing: modeSettings.lineSpacing,
+      letterSpacing: modeSettings.letterSpacing,
+    });
+  };
+
   return (
     <ReadingContext.Provider
       value={{
         books,
         currentBook,
         settings,
+        stats,
         isLoading,
         addBook,
         removeBook,
@@ -308,6 +496,10 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
         removeNote,
         updateSettings,
         exportData,
+        startReadingSession,
+        endReadingSession,
+        updateStats,
+        applyReadingMode,
       }}
     >
       {children}

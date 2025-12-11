@@ -6,20 +6,24 @@ export function useTheme(overrideMode?: ThemeMode, autoTheme: boolean = true) {
   
   let effectiveMode: ThemeMode;
   
-  if (autoTheme || !overrideMode) {
+  if (autoTheme) {
     effectiveMode = systemColorScheme === "dark" ? "dark" : "light";
-  } else {
+  } else if (overrideMode) {
     effectiveMode = overrideMode;
+  } else {
+    effectiveMode = systemColorScheme === "dark" ? "dark" : "light";
   }
   
-  const isDark = effectiveMode === "dark";
+  const isDark = effectiveMode === "dark" || effectiveMode === "midnight" || effectiveMode === "dusk" || effectiveMode === "forest";
   const isSepia = effectiveMode === "sepia";
+  const isAmoled = effectiveMode === "midnight";
   const theme = Colors[effectiveMode] || Colors.light;
 
   return {
     theme,
     isDark,
     isSepia,
+    isAmoled,
     themeMode: effectiveMode,
   };
 }

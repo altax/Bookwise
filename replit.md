@@ -1,18 +1,23 @@
-# Bookwise - Minimalist Book Reader
+# Bookwise - Premium Book Reader
 
 ## Overview
-Bookwise is a minimalist mobile book reader app built with Expo and React Native. The app focuses on providing an immersive, distraction-free reading experience with customizable settings.
+Bookwise is a premium mobile book reader app built with Expo and React Native. The app provides an award-winning reading experience with cognitive science-based optimizations, modern glassmorphism design, and unique features like Bionic Reading mode.
 
 ## Current State
-Full MVP implemented with:
+Full MVP with premium v2.0 features:
 - Library screen for managing book collection (grid/list view toggle, swipe-to-delete)
 - Book import via document picker (EPUB, PDF, TXT)
 - Full-screen reading interface with gesture controls
-- Theme customization (Day, Night, Sepia) with auto-theme option
-- Font size, line spacing, font family, and margin adjustments
-- Reading progress tracking with resume functionality
+- **6 Premium Themes**: Day, Night, Paper (Sepia), Dusk, AMOLED, Forest
+- **Bionic Reading Mode**: Bold first half of words for faster comprehension
+- **Focus Mode**: Zen UI with reading timer and break reminders
+- **Reading Intelligence**: Progress tracking, daily streaks, session analytics
+- **Glassmorphism Design**: Award-level UI with glass cards and animations
+- Cognitive science typography defaults (66 chars, 1.6 line spacing)
+- Font size, line spacing, letter spacing, font family, and margin adjustments
+- Reading modes presets (Standard, Comfortable, Compact, Focus)
 - Bookmarks and notes/annotations system
-- In-text search with highlighting (SearchModal)
+- In-text search with highlighting
 - Onboarding screen for first-time users
 - Export functionality (JSON/CSV via Share API)
 - Local data persistence via AsyncStorage
@@ -22,13 +27,31 @@ Full MVP implemented with:
 ### Structure
 ```
 client/
-  components/       # Reusable UI components (NoteModal, SearchModal, etc.)
-  constants/        # Theme and design tokens
-  contexts/         # React Context providers (ReadingContext)
-  hooks/            # Custom hooks (useTheme)
-  navigation/       # React Navigation setup (RootStackNavigator, MainTabNavigator)
-  screens/          # Screen components (Library, Reading, Settings, Onboarding)
-server/             # Express backend
+  components/       # Reusable UI components
+    - GlassCard.tsx        # Glassmorphism container
+    - BionicText.tsx       # Speed reading text
+    - BookmarkRibbon.tsx   # Animated bookmark
+    - ProgressRing.tsx     # Circular progress
+    - Skeleton.tsx         # Loading placeholders
+    - ReadingTimer.tsx     # Focus mode timer
+    - NoteModal.tsx        # Note annotation modal
+    - SearchModal.tsx      # In-text search
+  constants/
+    - theme.ts             # Design tokens, colors, typography
+  contexts/
+    - ReadingContext.tsx   # Global state, reading stats
+  hooks/
+    - useTheme.ts          # Theme hook with dark mode detection
+  navigation/
+    - RootStackNavigator.tsx
+    - MainTabNavigator.tsx
+  screens/
+    - LibraryScreen.tsx    # Book collection
+    - ReadingScreen.tsx    # Main reader
+    - SettingsScreen.tsx   # Premium settings UI
+    - OnboardingScreen.tsx
+server/
+  - index.ts              # Express backend
 ```
 
 ### Navigation
@@ -39,73 +62,86 @@ server/             # Express backend
 ### Key Technologies
 - Expo SDK 54
 - React Navigation 7
-- React Native Reanimated
+- React Native Reanimated (animations)
 - React Native Gesture Handler
-- AsyncStorage for persistence
-- expo-document-picker for file imports
 - expo-haptics for tactile feedback
+- AsyncStorage for persistence
 
 ## Design System
-- Colors: Day (#FFFFFF), Night (#1A1A1A), Sepia (#F4ECD8)
-- Accent: #4A90E2 (light) / #5DADE2 (dark)
-- Icons: Feather icons from @expo/vector-icons
-- Typography: System fonts with adjustable sizes (12-32pt)
-- Font families: System, Serif (Georgia), Mono (Courier)
 
-## Features
+### Premium Themes
+1. **Day** - Clean white (#FAFAFA), purple accent (#6366F1)
+2. **Night** - Deep dark (#0A0A0F), indigo accent (#818CF8)
+3. **Paper** - Warm sepia (#F8F4EC), tan accent (#A0785C)
+4. **Dusk** - Purple night (#1A1625), violet accent (#B794F6)
+5. **AMOLED** - Pure black (#000000), blue accent (#3B82F6)
+6. **Forest** - Green dark (#0F1A14), green accent (#4ADE80)
 
-### Library Management
-- Grid and list view toggle
-- Swipe-to-delete functionality
-- Book cover display with metadata
-- Reading progress indicators
+### Typography
+- Reading defaults: 18pt, 1.6 line height, 0.2px letter spacing
+- Optimal line length: 66 characters
+- Font families: System, Georgia, Times, Palatino
 
-### Reading Experience
-- Tap gestures for page navigation
-- Long-press for note annotations
-- Bookmarks with quick access
-- Search with text highlighting
-- Table of contents navigation
+### Motion Design
+- Spring animations with configurable damping
+- Page transitions under 300ms
+- Subtle micro-interactions
 
-### Notes & Annotations
-- Add notes to selected text
-- View and manage notes per book
-- Edit and delete notes
+### Glassmorphism
+- Glass cards with blur effects
+- Animated borders and shadows
+- Depth through transparency
 
-### Data Export
-- Export bookmarks and notes to JSON
-- Export bookmarks and notes to CSV
-- Uses native Share API for compatibility
+## Premium Features
 
-### Settings
-- Theme selection (Day/Night/Sepia)
-- Auto-theme based on system preference
-- Font size adjustment (12-32pt)
-- Line height adjustment (1.0-2.5x)
-- Font family selection
-- Margin customization
+### Bionic Reading Mode
+- Bolds first half of each word
+- Improves reading speed by creating fixation points
+- Based on cognitive science research
+
+### Focus Studio
+- Minimal zen UI during reading
+- Built-in reading timer
+- Break reminders (Pomodoro-style)
+- Haptic feedback notifications
+
+### Reading Intelligence
+- Progress ring visualization
+- Daily reading time tracking
+- Streak system for motivation
+- Session-based analytics
+
+### Reading Modes (Presets)
+1. **Standard** - Default balanced settings
+2. **Comfortable** - Larger text, more spacing
+3. **Compact** - Dense layout for more content
+4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
-- December 2024: Initial MVP implementation
-- December 2024: Added notes/annotations system with NoteModal
-- December 2024: Implemented search functionality with SearchModal
-- December 2024: Added export feature (JSON/CSV) in Settings
-- December 2024: Created onboarding screen for first-time users
-- December 2024: Enhanced LibraryScreen with grid/list toggle and swipe-to-delete
-- December 2024: Fixed export implementation using Share API instead of FileSystem
+- December 2024: v2.0 Premium redesign
+- December 2024: Added 6 premium themes with glassmorphism
+- December 2024: Implemented Bionic Reading mode
+- December 2024: Created Focus Mode with reading timer
+- December 2024: Added reading statistics and streaks
+- December 2024: New award-level components (GlassCard, ProgressRing, etc.)
+- December 2024: Enhanced typography with letter spacing
+- December 2024: Reading mode presets
 
 ## User Preferences
 - No authentication required (local-first app)
-- Minimalist, gesture-based interface
-- Focus on reading experience over features
+- Premium, gesture-based interface
+- Focus on reading experience and delight
 - Haptic feedback for interactions
+- Bionic reading toggle
+- Customizable daily reading goals
 
 ## Running the App
 - Scan the QR code with Expo Go (Android) or Camera app (iOS)
 - Or use the web preview at localhost:8081
 
-## Future Enhancements
-- Cloud synchronization (optional)
-- EPUB/PDF full rendering support
-- Reading statistics and goals
-- Book organization with tags/collections
+## Architecture Decisions
+- Cognitive science research for typography defaults
+- Glassmorphism for modern premium feel
+- Spring animations for natural motion
+- Reading modes for quick personalization
+- Component-based design system
