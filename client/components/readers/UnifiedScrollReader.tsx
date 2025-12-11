@@ -107,13 +107,11 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
 
   const lineHeight = settings.fontSize * settings.lineSpacing;
   const verticalPadding = 40;
-  const headerSpace = 60;
-  const footerSpace = 80;
-  const paddingTop = headerSpace + verticalPadding;
-  const paddingBottom = footerSpace + verticalPadding;
+  const paddingTop = insets.top + verticalPadding;
+  const paddingBottom = insets.bottom + verticalPadding + 60;
   
-  const autoScrollSpeed = settings.autoScrollSpeed || 50;
-  const tapScrollAnimationSpeed = settings.tapScrollAnimationSpeed || 300;
+  const autoScrollSpeed = Math.max(5, Math.min(settings.autoScrollSpeed || 50, 200));
+  const tapScrollAnimationSpeed = Math.max(50, Math.min(settings.tapScrollAnimationSpeed || 300, 1000));
   const tapScrollLinePosition = settings.tapScrollLinePosition || "top";
 
   const updateScrollPosition = useCallback((y: number) => {
@@ -176,53 +174,58 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
   }, []);
 
-  const findLastFullyVisibleLineIndex = useCallback((): number => {
+  const findLastVisibleLineIndex = useCallback((): number => {
     const lines = measuredLinesRef.current;
     if (lines.length === 0) return -1;
     
     const scrollOffset = currentScrollY;
     const textAreaTop = paddingTop + textContainerY;
     
-    let lastFullyVisibleIndex = -1;
+    const visibleTop = scrollOffset + paddingTop;
+    const visibleBottom = scrollOffset + viewportHeight - paddingBottom;
+    
+    let lastVisibleIndex = -1;
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const lineAbsoluteTop = textAreaTop + line.y;
       const lineAbsoluteBottom = lineAbsoluteTop + line.height;
       
-      const lineScreenTop = lineAbsoluteTop - scrollOffset;
-      const lineScreenBottom = lineAbsoluteBottom - scrollOffset;
+      const isAtLeastHalfVisible = 
+        lineAbsoluteTop < visibleBottom && 
+        lineAbsoluteBottom > visibleTop &&
+        (Math.min(lineAbsoluteBottom, visibleBottom) - Math.max(lineAbsoluteTop, visibleTop)) >= (line.height * 0.5);
       
-      const visibleTop = 0;
-      const visibleBottom = viewportHeight;
-      
-      const isFullyVisible = lineScreenTop >= visibleTop && lineScreenBottom <= visibleBottom;
-      
-      if (isFullyVisible && line.text.trim().length > 0) {
-        lastFullyVisibleIndex = i;
+      if (isAtLeastHalfVisible && line.text.trim().length > 0) {
+        lastVisibleIndex = i;
       }
     }
     
-    return lastFullyVisibleIndex;
-  }, [currentScrollY, viewportHeight, paddingTop, textContainerY]);
+    return lastVisibleIndex;
+  }, [currentScrollY, viewportHeight, paddingTop, paddingBottom, textContainerY]);
 
   const scrollToLineIndex = useCallback((lineIndex: number, highlight: boolean = true) => {
     const lines = measuredLinesRef.current;
     if (lineIndex < 0 || lineIndex >= lines.length) return;
     
     const line = lines[lineIndex];
+    const textAreaTop = paddingTop + textContainerY;
+    const lineAbsoluteY = textAreaTop + line.y;
     
     let targetY: number;
     if (tapScrollLinePosition === "center") {
-      targetY = line.y + textContainerY + paddingTop - (viewportHeight / 2) + (line.height / 2);
+      targetY = lineAbsoluteY - (viewportHeight / 2) + (line.height / 2);
     } else {
-      targetY = line.y + textContainerY + paddingTop - verticalPadding;
+      targetY = lineAbsoluteY - paddingTop;
     }
+    
+    const maxScroll = contentHeight - viewportHeight + paddingTop + paddingBottom;
+    targetY = Math.max(0, Math.min(targetY, maxScroll));
     
     isScrollingRef.current = true;
     
-    const animDuration = Math.max(tapScrollAnimationSpeed, 100);
-    animateScrollTo(Math.max(0, targetY), animDuration);
+    const animDuration = tapScrollAnimationSpeed;
+    animateScrollTo(targetY, animDuration);
     
     setTimeout(() => {
       isScrollingRef.current = false;
@@ -247,7 +250,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
         highlightTimeoutRef.current = null;
       }, 1100);
     }
-  }, [paddingTop, textContainerY, highlightOpacity, tapScrollLinePosition, viewportHeight, tapScrollAnimationSpeed, animateScrollTo]);
+  }, [paddingTop, paddingBottom, textContainerY, contentHeight, highlightOpacity, tapScrollLinePosition, viewportHeight, tapScrollAnimationSpeed, animateScrollTo]);
 
   const handleTapScroll = useCallback(() => {
     const now = Date.now();
@@ -256,13 +259,15 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     
     if (isScrollingRef.current) return;
     
-    const lastVisibleIndex = findLastFullyVisibleLineIndex();
+    const lastVisibleIndex = findLastVisibleLineIndex();
     const lines = measuredLinesRef.current;
     
     if (lastVisibleIndex >= 0 && lastVisibleIndex < lines.length - 1) {
       scrollToLineIndex(lastVisibleIndex, true);
+    } else if (lastVisibleIndex === lines.length - 1) {
+      // At end of book - no more scrolling
     }
-  }, [findLastFullyVisibleLineIndex, scrollToLineIndex]);
+  }, [findLastVisibleLineIndex, scrollToLineIndex]);
 
   const startAutoScroll = useCallback(() => {
     if (autoScrollIntervalRef.current) return;
@@ -473,7 +478,12 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const lineScrollPosition = textAreaTop + line.y - verticalPadding;
+      let lineScrollPosition: number;
+      if (tapScrollLinePosition === "center") {
+        lineScrollPosition = textAreaTop + line.y - (viewportHeight / 2) + (line.height / 2);
+      } else {
+        lineScrollPosition = textAreaTop + line.y - paddingTop;
+      }
       const distance = Math.abs(contentOffset.y - lineScrollPosition);
       
       if (distance < minDistance) {
@@ -483,13 +493,21 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
     
     const targetLine = lines[closestLineIndex];
-    const targetY = textAreaTop + targetLine.y - verticalPadding;
+    let targetY: number;
+    if (tapScrollLinePosition === "center") {
+      targetY = textAreaTop + targetLine.y - (viewportHeight / 2) + (targetLine.height / 2);
+    } else {
+      targetY = textAreaTop + targetLine.y - paddingTop;
+    }
+    
+    const maxScroll = contentHeight - viewportHeight + paddingTop + paddingBottom;
+    targetY = Math.max(0, Math.min(targetY, maxScroll));
     
     scrollViewRef.current?.scrollTo({
-      y: Math.max(0, targetY),
+      y: targetY,
       animated: true,
     });
-  }, [scrollMode, paddingTop, textContainerY, verticalPadding]);
+  }, [scrollMode, paddingTop, paddingBottom, textContainerY, tapScrollLinePosition, viewportHeight, contentHeight]);
 
   const scrollViewProps = scrollMode === "tapScroll" ? {
     scrollEnabled: true,
