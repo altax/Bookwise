@@ -126,6 +126,7 @@ server/
 - December 2024: New award-level components (GlassCard, ProgressRing, etc.)
 - December 2024: Enhanced typography with letter spacing
 - December 2024: Reading mode presets
+- December 2024: Fixed EPUB loading bugs - added 30-second timeout, file existence checks, retry mechanism with re-armed timeout protection
 
 ## User Preferences
 - No authentication required (local-first app)
