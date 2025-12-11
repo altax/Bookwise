@@ -262,13 +262,13 @@ export default function ReadingScreen() {
 
   const handleTableOfContents = () => {
     const chapters = parsedBook?.chapters || [
-      { title: "Chapter 1", page: 0 },
-      { title: "Chapter 2", page: 3 },
-      { title: "Chapter 3", page: 6 },
+      { title: "Chapter 1", order: 0 },
+      { title: "Chapter 2", order: 3 },
+      { title: "Chapter 3", order: 6 },
     ];
     navigation.navigate("TableOfContents", {
       book: activeBook,
-      chapters: chapters.map((c, i) => ({ title: c.title, page: c.order || i })),
+      chapters: chapters.map((c, i) => ({ title: c.title, page: 'order' in c ? c.order : i })),
     });
   };
 
