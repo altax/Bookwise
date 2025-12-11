@@ -118,29 +118,11 @@ server/
 4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
-- December 2024: **TAP-SCROLL MODE COMPLETE REWRITE**:
-  - Right tap zone now exactly 1/3 (33%) of screen width for universal device support
-  - New 2-phase scroll logic: 1) auto-scroll partial line into full view, 2) smooth scroll to top
-  - Yellow highlight with 0.5s fade-out animation (using Easing.out curve)
-  - Dynamic screen dimension handling for landscape/portrait orientation changes
-  - Manual scroll completely disabled in tap-scroll mode (scrollEnabled: false)
-  - Edge case handling: last page detection, single line on screen, variable font sizes
-  - 60fps performance maintained with Reanimated withTiming animations
-- December 2024: **Tap Zone & Settings Redesign**:
-  - 3-zone tap system: left (15%) = menu, center (52%) = nothing, right (33%) = tap scroll only in tap mode
-  - Removed unused top/bottom padding settings from ReadingContext and UI
-  - Compact settings panel with live text preview showing real-time font size and line spacing changes
-  - Tap scroll now supports both "Top" and "Center" target positions via settings
-  - Reading timer properly respects Android safe area insets (no more overlap with status bar)
-  - Tap scroll completely reworked using measured line layout data for accurate scrolling
+- December 2024: **TAP-SCROLL MODE REMOVED**: Completely removed tap-scroll mode from the app per user request. App now supports only two scroll modes: Seamless (manual finger scrolling) and Auto-Scroll (automatic scrolling at configurable speed).
 - December 2024: **UX Improvements**:
   - Auto-scroll automatically pauses when opening the general menu
   - Progress bar has dedicated space at bottom, no text overlap
   - Settings changes apply instantly with debounced persistence (300ms)
-- December 2024: **Tap Scroll Improvements**:
-  - Manual scrolling disabled in tap scroll mode for distraction-free reading
-  - Visual hint overlay appears when entering tap scroll mode
-  - Configurable animation speed (100-1000ms)
 - December 2024: **Reading Timer Visibility**:
   - Shows reading time when enabled outside focus mode
   - Hidden in focus mode for minimal UI
@@ -149,34 +131,23 @@ server/
 - December 2024: Implemented Bionic Reading mode
 - December 2024: Created Focus Mode with reading timer
 - December 2024: Added reading statistics and streaks
-- December 2024: **Advanced Scroll Modes**:
+- December 2024: **Scroll Modes**:
+  - **Seamless Scroll**: Continuous smooth scrolling for immersive reading
   - **Auto-Scroll**: Automatic scrolling with adjustable speed (5-200 px/s), tap to play/pause
-  - **Tap-Scroll**: Improved line detection (50%+ visibility), configurable animation speed (50-1000ms)
-  - **Last Line Position**: Choose whether tapped line appears at top or center of screen
-  - **Safe Area Fix**: Text no longer overlaps system UI (status bar, navigation buttons)
 - December 2024: New award-level components (GlassCard, ProgressRing, etc.)
 - December 2024: Enhanced typography with letter spacing
 - December 2024: Reading mode presets
 - December 2024: Fixed EPUB loading bugs - added 30-second timeout, file existence checks, retry mechanism with re-armed timeout protection
-- December 2024: **NEW Scroll Modes** - Implemented two scroll modes:
-  - **Seamless Scroll**: Continuous smooth scrolling for immersive reading
-  - **Tap-Scroll**: Tap anywhere to scroll the last visible line to the top with brief highlighting to prevent losing your reading position
 - December 2024: Created UnifiedScrollReader component with accurate line detection using React Native's onTextLayout callback
 - December 2024: Simplified EPUB loading flow (load -> open -> read)
-- December 2024: **Tap-Scroll Improvements**:
-  - Fixed last visible line detection using screen coordinates for accurate visibility check
-  - Added slow manual scrolling with line-snapping (scrolls snap to nearest line after drag)
-  - Added vertical padding (40px) so text doesn't touch screen edges (top and bottom)
-  - Auto-adjusts scroll to ensure last line is fully visible after tap
-  - Very slow deceleration rate for controlled one-line-at-a-time scrolling
 - December 2024: Fixed bionic mode infinite loading by separating layout measurement from styled text rendering
 - December 2024: Removed "Animations/Smooth page transitions" setting from settings screen
 - December 2024: **App Theme Toggle**: Separate light/dark mode for app interface, independent from reading themes
   - Auto-follow system theme option
   - Manual light/dark selection
 - December 2024: **Auto-Scroll Start Button**: Glassmorphism overlay on book load
-  - "Готово к чтению" (Ready to read) message with speed indicator
-  - "Начать чтение" (Start Reading) button initiates scrolling
+  - "Ready to read" message with speed indicator
+  - "Start Reading" button initiates scrolling
   - Uses hasUserStartedReadingRef guard to prevent overlay reappearing after dismissal
 
 ## User Preferences

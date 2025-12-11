@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { AppState, AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ReadingDefaults, ThemeMode, AvailableFonts, ReadingMode, ReadingModes, ScrollMode, TapScrollLinePositionType, AutoScrollDefaults, TapScrollDefaults } from "@/constants/theme";
+import { ReadingDefaults, ThemeMode, AvailableFonts, ReadingMode, ReadingModes, ScrollMode, AutoScrollDefaults } from "@/constants/theme";
 
 export interface Book {
   id: string;
@@ -83,8 +83,6 @@ interface ReadingSettings {
   dailyGoal: number;
   textAlignment: "left" | "justify";
   autoScrollSpeed: number;
-  tapScrollAnimationSpeed: number;
-  tapScrollLinePosition: TapScrollLinePositionType;
   appTheme: AppTheme;
   autoAppTheme: boolean;
   showReadingTime: boolean;
@@ -134,8 +132,6 @@ const defaultSettings: ReadingSettings = {
   dailyGoal: 30,
   textAlignment: "left",
   autoScrollSpeed: AutoScrollDefaults.defaultSpeed,
-  tapScrollAnimationSpeed: TapScrollDefaults.defaultAnimationSpeed,
-  tapScrollLinePosition: "top",
   appTheme: "light",
   autoAppTheme: true,
   showReadingTime: true,

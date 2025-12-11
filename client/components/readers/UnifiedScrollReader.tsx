@@ -28,7 +28,7 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import type { ScrollMode, TapScrollLinePositionType } from "@/constants/theme";
+import type { ScrollMode } from "@/constants/theme";
 
 const getScreenDimensions = () => Dimensions.get("window");
 
@@ -53,12 +53,9 @@ interface UnifiedScrollReaderProps {
     textAlignment: "left" | "justify";
     bionicReading: boolean;
     autoScrollSpeed?: number;
-    tapScrollAnimationSpeed?: number;
-    tapScrollLinePosition?: TapScrollLinePositionType;
   };
   initialPosition?: number;
   onAutoScrollStateChange?: (isPlaying: boolean) => void;
-  showTapHint?: boolean;
   progressBarHeight?: number;
   pauseAutoScroll?: () => void;
 }
@@ -92,7 +89,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   settings,
   initialPosition = 0,
   onAutoScrollStateChange,
-  showTapHint = true,
   progressBarHeight = 0,
   pauseAutoScroll: externalPauseAutoScroll,
 }, ref) => {
@@ -102,7 +98,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const isScrollingRef = useRef(false);
   const lastTapTimeRef = useRef(0);
   const measuredLinesRef = useRef<MeasuredLine[]>([]);
-  const tapHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoScrollPosition = useSharedValue(0);
   const isAutoScrollActive = useSharedValue(false);
   const autoScrollMaxY = useSharedValue(0);
@@ -124,42 +119,18 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const [textContainerY, setTextContainerY] = useState(0);
   const [isAutoScrollPlaying, setIsAutoScrollPlaying] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(false);
-  const [showTapHintOverlay, setShowTapHintOverlay] = useState(false);
   const hasUserStartedReadingRef = useRef(false);
-  const hasShownTapHintRef = useRef(false);
   
   const highlightOpacity = useSharedValue(0);
   const animatedScrollY = useSharedValue(0);
   const isAnimatingScrollShared = useSharedValue(0);
   const scrollAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tapHintOpacity = useSharedValue(0);
 
   const lineHeight = settings.fontSize * settings.lineSpacing;
   const paddingTop = insets.top + 60;
   const paddingBottom = insets.bottom + 60 + progressBarHeight;
   
   const autoScrollSpeed = Math.max(5, Math.min(settings.autoScrollSpeed || 50, 200));
-  const tapScrollAnimationSpeed = Math.max(50, Math.min(settings.tapScrollAnimationSpeed || 300, 1000));
-  const tapScrollLinePosition = settings.tapScrollLinePosition || "top";
-
-  useEffect(() => {
-    if (scrollMode === "tapScroll" && isReady && !hasShownTapHintRef.current && showTapHint) {
-      hasShownTapHintRef.current = true;
-      setShowTapHintOverlay(true);
-      tapHintOpacity.value = withTiming(1, { duration: 300 });
-      
-      tapHintTimeoutRef.current = setTimeout(() => {
-        tapHintOpacity.value = withTiming(0, { duration: 300 });
-        setTimeout(() => setShowTapHintOverlay(false), 300);
-      }, 3000);
-    }
-    
-    return () => {
-      if (tapHintTimeoutRef.current) {
-        clearTimeout(tapHintTimeoutRef.current);
-      }
-    };
-  }, [scrollMode, isReady, showTapHint, tapHintOpacity]);
 
   const updateScrollPosition = useCallback((y: number) => {
     scrollTo(animatedScrollViewRef, 0, y, false);
@@ -389,84 +360,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }, 600);
   }, [highlightOpacity]);
 
-  const scrollToLineIndex = useCallback((lineIndex: number, position: "top" | "center" = "top", highlight: boolean = true) => {
-    const lines = measuredLinesRef.current;
-    if (lineIndex < 0 || lineIndex >= lines.length) return;
-    
-    const line = lines[lineIndex];
-    const textAreaTop = paddingTop + textContainerY;
-    const lineAbsoluteY = textAreaTop + line.y;
-    
-    let targetY: number;
-    if (position === "center") {
-      const viewportCenter = viewportHeight / 2;
-      targetY = lineAbsoluteY - viewportCenter + line.height / 2;
-    } else {
-      targetY = lineAbsoluteY - paddingTop;
-    }
-    
-    const maxScroll = Math.max(0, contentHeight - viewportHeight + paddingTop + paddingBottom);
-    const clampedTargetY = Math.max(0, Math.min(targetY, maxScroll));
-    
-    isScrollingRef.current = true;
-    
-    const animDuration = tapScrollAnimationSpeed;
-    animateScrollTo(clampedTargetY, animDuration);
-    
-    setTimeout(() => {
-      isScrollingRef.current = false;
-    }, animDuration + 100);
-    
-    if (highlight) {
-      highlightLine(lineIndex);
-    }
-  }, [paddingTop, paddingBottom, textContainerY, contentHeight, highlightOpacity, viewportHeight, tapScrollAnimationSpeed, animateScrollTo, highlightLine]);
-
-  const handleTapScroll = useCallback(() => {
-    const now = Date.now();
-    if (now - lastTapTimeRef.current < 200) return;
-    lastTapTimeRef.current = now;
-    
-    if (isScrollingRef.current) return;
-    
-    if (showTapHintOverlay) {
-      tapHintOpacity.value = withTiming(0, { duration: 150 });
-      setTimeout(() => setShowTapHintOverlay(false), 150);
-    }
-    
-    const lines = measuredLinesRef.current;
-    if (lines.length === 0) return;
-    
-    const bottomInfo = findBottomLineInfo();
-    
-    if (bottomInfo.lineIndex < 0) return;
-    
-    const isAtEnd = bottomInfo.lineIndex >= lines.length - 1;
-    if (isAtEnd && !bottomInfo.isPartiallyVisible) {
-      return;
-    }
-    
-    isScrollingRef.current = true;
-    
-    const animSpeed = Math.max(150, Math.min(tapScrollAnimationSpeed, 400));
-    
-    if (bottomInfo.isPartiallyVisible) {
-      scrollLineIntoFullView(bottomInfo.lineIndex, animSpeed * 0.4, () => {
-        setTimeout(() => {
-          scrollToLineTop(bottomInfo.lineIndex, animSpeed * 0.6, () => {
-            highlightLine(bottomInfo.lineIndex);
-            isScrollingRef.current = false;
-          });
-        }, 16);
-      });
-    } else {
-      scrollToLineTop(bottomInfo.lineIndex, animSpeed, () => {
-        highlightLine(bottomInfo.lineIndex);
-        isScrollingRef.current = false;
-      });
-    }
-  }, [findBottomLineInfo, scrollLineIntoFullView, scrollToLineTop, highlightLine, showTapHintOverlay, tapHintOpacity, tapScrollAnimationSpeed]);
-
   const updateScrollYFromWorklet = useCallback((y: number) => {
     setCurrentScrollY(y);
     if (contentHeight > 0) {
@@ -535,12 +428,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       startAutoScroll();
     }
   }, [isAutoScrollPlaying, startAutoScroll, stopAutoScroll]);
-
-  const handleRightTap = useCallback(() => {
-    if (scrollMode === "tapScroll") {
-      handleTapScroll();
-    }
-  }, [scrollMode, handleTapScroll]);
 
   const handleCenterTap = useCallback(() => {
   }, []);
@@ -672,10 +559,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     opacity: highlightOpacity.value,
   }));
 
-  const tapHintAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: tapHintOpacity.value,
-  }));
-
   const renderBionicWord = (word: string, key: string | number) => {
     if (/^\s+$/.test(word)) {
       return <Text key={key}>{word}</Text>;
@@ -715,21 +598,14 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     );
   };
 
-  const scrollViewProps = scrollMode === "tapScroll" ? {
-    scrollEnabled: false,
-    showsVerticalScrollIndicator: false,
-  } : scrollMode === "autoScroll" ? {
+  const scrollViewProps = scrollMode === "autoScroll" ? {
     scrollEnabled: !isAutoScrollPlaying,
-    showsVerticalScrollIndicator: false,
-    decelerationRate: "normal" as const,
-  } : scrollMode === "seamless" ? {
-    scrollEnabled: true,
     showsVerticalScrollIndicator: false,
     decelerationRate: "normal" as const,
   } : {
     scrollEnabled: true,
     showsVerticalScrollIndicator: false,
-    decelerationRate: "fast" as const,
+    decelerationRate: "normal" as const,
   };
 
   const screenWidth = screenDimensions.width;
@@ -788,39 +664,15 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
         </View>
       </Animated.ScrollView>
 
-      {(scrollMode === "tapScroll" || scrollMode === "autoScroll") && (
+      {scrollMode === "autoScroll" && (
         <View style={styles.tapZonesContainer} pointerEvents="box-none">
           <Pressable 
             style={[styles.tapZone, { width: leftZoneWidth }]} 
             onPress={handleLeftTap}
           />
           <View style={[styles.tapZone, { width: centerZoneWidth }]} />
-          <Pressable 
-            style={[styles.tapZone, { width: rightZoneWidth }]} 
-            onPress={handleRightTap}
-          />
+          <View style={[styles.tapZone, { width: rightZoneWidth }]} />
         </View>
-      )}
-
-      {showTapHintOverlay && scrollMode === "tapScroll" && (
-        <Animated.View style={[styles.tapHintOverlay, tapHintAnimatedStyle]} pointerEvents="none">
-          <View style={[styles.tapHintLeft, { backgroundColor: 'rgba(255, 255, 255, 0.08)' }]}>
-            <View style={styles.tapHintContent}>
-              <Feather name="menu" size={24} color={theme.secondaryText} />
-              <Text style={[styles.tapHintText, { color: theme.secondaryText }]}>
-                Menu
-              </Text>
-            </View>
-          </View>
-          <View style={[styles.tapHintRight, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
-            <View style={styles.tapHintContent}>
-              <Feather name="chevrons-down" size={32} color={theme.text} />
-              <Text style={[styles.tapHintText, { color: theme.text }]}>
-                Tap here to scroll
-              </Text>
-            </View>
-          </View>
-        </Animated.View>
       )}
 
       {showStartOverlay && (
@@ -911,37 +763,6 @@ const styles = StyleSheet.create({
   },
   tapZone: {
     height: "100%",
-  },
-  tapHintOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    flexDirection: "row",
-    zIndex: 20,
-  },
-  tapHintLeft: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: "15%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tapHintRight: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: "33%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tapHintContent: {
-    alignItems: "center",
-    gap: 8,
-  },
-  tapHintText: {
-    fontSize: 14,
-    fontWeight: "500",
   },
   startOverlay: {
     ...StyleSheet.absoluteFillObject,

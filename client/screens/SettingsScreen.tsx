@@ -8,7 +8,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode, ScrollModes, ScrollMode, TapScrollLinePosition, TapScrollLinePositionType, AutoScrollDefaults, TapScrollDefaults } from "@/constants/theme";
+import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode, ScrollModes, ScrollMode, AutoScrollDefaults } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useReading } from "@/contexts/ReadingContext";
@@ -258,7 +258,7 @@ export default function SettingsScreen() {
             {(Object.keys(ScrollModes) as ScrollMode[]).map((mode) => {
               const modeData = ScrollModes[mode];
               const isSelected = settings.scrollMode === mode;
-              const iconName = mode === "seamless" ? "arrow-down" : mode === "tapScroll" ? "mouse-pointer" : "play";
+              const iconName = mode === "seamless" ? "arrow-down" : "play";
               return (
                 <Pressable
                   key={mode}
@@ -325,80 +325,6 @@ export default function SettingsScreen() {
             </View>
           )}
 
-          {settings.scrollMode === "tapScroll" && (
-            <>
-              <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
-                <View style={styles.settingRow}>
-                  <View style={styles.settingLabelRow}>
-                    <Feather name="activity" size={20} color={theme.text} />
-                    <View>
-                      <ThemedText style={styles.settingLabel}>Scroll Animation Speed</ThemedText>
-                      <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                        {settings.tapScrollAnimationSpeed} ms
-                      </ThemedText>
-                    </View>
-                  </View>
-                </View>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={TapScrollDefaults.minAnimationSpeed}
-                  maximumValue={TapScrollDefaults.maxAnimationSpeed}
-                  step={50}
-                  value={settings.tapScrollAnimationSpeed}
-                  onValueChange={(value) => updateSettings({ tapScrollAnimationSpeed: value })}
-                  minimumTrackTintColor={theme.accent}
-                  maximumTrackTintColor={theme.backgroundTertiary}
-                  thumbTintColor={theme.accent}
-                />
-              </View>
-
-              <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
-                <View style={styles.settingRow}>
-                  <View style={styles.settingLabelRow}>
-                    <Feather name="align-center" size={20} color={theme.text} />
-                    <View>
-                      <ThemedText style={styles.settingLabel}>Last Line Position</ThemedText>
-                      <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                        Where to place the last visible line after tap
-                      </ThemedText>
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.linePositionOptions}>
-                  {(Object.keys(TapScrollLinePosition) as TapScrollLinePositionType[]).map((position) => {
-                    const positionData = TapScrollLinePosition[position];
-                    const isSelected = settings.tapScrollLinePosition === position;
-                    return (
-                      <Pressable
-                        key={position}
-                        style={[
-                          styles.linePositionOption,
-                          {
-                            backgroundColor: isSelected ? theme.accent : theme.backgroundSecondary,
-                          },
-                        ]}
-                        onPress={() => {
-                          if (settings.hapticFeedback) {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          }
-                          updateSettings({ tapScrollLinePosition: position });
-                        }}
-                      >
-                        <ThemedText
-                          style={[
-                            styles.linePositionOptionText,
-                            { color: isSelected ? "#FFFFFF" : theme.text },
-                          ]}
-                        >
-                          {positionData.name}
-                        </ThemedText>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            </>
-          )}
         </View>
 
         <View style={styles.section}>
@@ -1112,23 +1038,6 @@ const styles = StyleSheet.create({
   },
   focusHintText: {
     fontSize: 12,
-  },
-  linePositionOptions: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
-  },
-  linePositionOption: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  linePositionOptionText: {
-    fontSize: 14,
-    fontWeight: "600",
   },
   appThemeToggle: {
     flexDirection: "row",

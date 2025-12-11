@@ -25,7 +25,7 @@ import Animated, {
   Extrapolation,
 } from "react-native-reanimated";
 
-import { Spacing, Fonts, Motion, ReadingDefaults, ScrollModes, ScrollMode, TapScrollLinePosition, TapScrollLinePositionType, AutoScrollDefaults, TapScrollDefaults, ThemeMode } from "@/constants/theme";
+import { Spacing, Fonts, Motion, ReadingDefaults, ScrollModes, ScrollMode, AutoScrollDefaults, ThemeMode } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { useReading, Book } from "@/contexts/ReadingContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -420,8 +420,6 @@ export default function ReadingScreen() {
           textAlignment: settings.textAlignment,
           bionicReading: settings.bionicReading,
           autoScrollSpeed: settings.autoScrollSpeed,
-          tapScrollAnimationSpeed: settings.tapScrollAnimationSpeed,
-          tapScrollLinePosition: settings.tapScrollLinePosition,
         }}
         progressBarHeight={settings.showReadingProgress ? PROGRESS_BAR_HEIGHT : 0}
         pauseAutoScroll={pauseAutoScrollIfPlaying}
@@ -482,7 +480,7 @@ export default function ReadingScreen() {
                   {(Object.keys(ScrollModes) as ScrollMode[]).map((mode) => {
                     const modeData = ScrollModes[mode];
                     const isSelected = settings.scrollMode === mode;
-                    const iconName = mode === "seamless" ? "arrow-down" : mode === "tapScroll" ? "mouse-pointer" : "play";
+                    const iconName = mode === "seamless" ? "arrow-down" : "play";
                     return (
                       <Pressable
                         key={mode}
@@ -521,51 +519,6 @@ export default function ReadingScreen() {
                     maximumTrackTintColor={theme.backgroundTertiary}
                     thumbTintColor={theme.accent}
                   />
-                </View>
-              )}
-
-              {settings.scrollMode === "tapScroll" && (
-                <View style={styles.settingsSection}>
-                  <View style={styles.sliderHeader}>
-                    <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Animation Speed</ThemedText>
-                    <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.tapScrollAnimationSpeed} ms</ThemedText>
-                  </View>
-                  <Slider
-                    style={styles.slider}
-                    minimumValue={TapScrollDefaults.minAnimationSpeed}
-                    maximumValue={TapScrollDefaults.maxAnimationSpeed}
-                    step={50}
-                    value={settings.tapScrollAnimationSpeed}
-                    onValueChange={(value) => updateSettings({ tapScrollAnimationSpeed: value })}
-                    minimumTrackTintColor={theme.accent}
-                    maximumTrackTintColor={theme.backgroundTertiary}
-                    thumbTintColor={theme.accent}
-                  />
-                  <ThemedText style={[styles.settingsLabel, { color: theme.text, marginTop: 12 }]}>
-                    Scroll Target Position
-                  </ThemedText>
-                  <View style={styles.tapScrollPositionOptions}>
-                    {(Object.keys(TapScrollLinePosition) as TapScrollLinePositionType[]).map((position) => {
-                      const isSelected = settings.tapScrollLinePosition === position;
-                      return (
-                        <Pressable
-                          key={position}
-                          style={[
-                            styles.tapScrollPositionOption,
-                            { backgroundColor: isSelected ? theme.accent : theme.backgroundSecondary },
-                          ]}
-                          onPress={() => {
-                            triggerHaptic();
-                            updateSettings({ tapScrollLinePosition: position });
-                          }}
-                        >
-                          <ThemedText style={[styles.tapScrollPositionLabel, { color: isSelected ? "#FFFFFF" : theme.text }]}>
-                            {TapScrollLinePosition[position].name}
-                          </ThemedText>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
                 </View>
               )}
 
@@ -1078,21 +1031,5 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     width: 32,
     textAlign: "right",
-  },
-  tapScrollPositionOptions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 8,
-  },
-  tapScrollPositionOption: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tapScrollPositionLabel: {
-    fontSize: 12,
-    fontWeight: "500",
   },
 });
