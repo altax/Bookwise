@@ -267,6 +267,60 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }, duration + 50);
   }, [currentScrollY, animatedScrollY, isAnimatingScrollShared, finishScrollAnimation]);
 
+  const generateFallbackLines = useCallback(() => {
+    if (!content || content.trim().length === 0) return;
+    
+    const paragraphs = content.split(/\n+/);
+    const lines: MeasuredLine[] = [];
+    const avgCharsPerLine = 50;
+    
+    paragraphs.forEach((paragraph, pIndex) => {
+      if (paragraph.trim().length === 0) return;
+      
+      const words = paragraph.trim().split(/\s+/);
+      let currentLine = '';
+      
+      words.forEach((word) => {
+        if ((currentLine + ' ' + word).length > avgCharsPerLine && currentLine.length > 0) {
+          lines.push({
+            text: currentLine.trim(),
+            x: 0,
+            y: lines.length * lineHeight,
+            width: 300,
+            height: lineHeight,
+            ascender: 0,
+            descender: 0,
+            capHeight: 0,
+            xHeight: 0,
+          });
+          currentLine = word;
+        } else {
+          currentLine = currentLine ? currentLine + ' ' + word : word;
+        }
+      });
+      
+      if (currentLine.trim().length > 0) {
+        lines.push({
+          text: currentLine.trim(),
+          x: 0,
+          y: lines.length * lineHeight,
+          width: 300,
+          height: lineHeight,
+          ascender: 0,
+          descender: 0,
+          capHeight: 0,
+          xHeight: 0,
+        });
+      }
+    });
+    
+    if (lines.length > 0) {
+      measuredLinesRef.current = lines;
+      setNonEmptyLines(lines);
+      setIsReady(true);
+    }
+  }, [content, lineHeight]);
+
   const handleTextLayout = useCallback((event: NativeSyntheticEvent<TextLayoutEventData>) => {
     const { lines } = event.nativeEvent;
     if (lines && lines.length > 0) {
@@ -285,8 +339,10 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       const filtered = allLines.filter(line => line.text.trim().length > 0);
       setNonEmptyLines(filtered);
       setIsReady(true);
+    } else if (scrollMode === "karaoke" && !isReady) {
+      generateFallbackLines();
     }
-  }, []);
+  }, [scrollMode, isReady, generateFallbackLines]);
 
   const updateScrollYFromWorklet = useCallback((y: number) => {
     setCurrentScrollY(y);
@@ -426,6 +482,17 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       karaokeAnimatedLine.value = 0;
     }
   }, [scrollMode, isReady]);
+
+  useEffect(() => {
+    if (scrollMode === "karaoke" && !isReady && content && content.length > 0) {
+      const fallbackTimer = setTimeout(() => {
+        if (!isReady && nonEmptyLines.length === 0) {
+          generateFallbackLines();
+        }
+      }, 500);
+      return () => clearTimeout(fallbackTimer);
+    }
+  }, [scrollMode, isReady, content, nonEmptyLines.length, generateFallbackLines]);
 
   const handleKaraokeAdvance = useCallback(() => {
     if (nonEmptyLines.length === 0) return;
