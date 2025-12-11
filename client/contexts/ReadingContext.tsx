@@ -87,8 +87,6 @@ interface ReadingSettings {
   tapScrollLinePosition: TapScrollLinePositionType;
   appTheme: AppTheme;
   autoAppTheme: boolean;
-  readerPaddingTop: number;
-  readerPaddingBottom: number;
   showReadingTime: boolean;
 }
 
@@ -140,8 +138,6 @@ const defaultSettings: ReadingSettings = {
   tapScrollLinePosition: "top",
   appTheme: "light",
   autoAppTheme: true,
-  readerPaddingTop: ReadingDefaults.paddingTop,
-  readerPaddingBottom: ReadingDefaults.paddingBottom,
   showReadingTime: true,
 };
 

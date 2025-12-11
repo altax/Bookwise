@@ -38,7 +38,6 @@ interface UnifiedScrollReaderProps {
   onScrollProgress?: (progress: number, currentPosition: number, totalHeight: number) => void;
   onError?: (error: string) => void;
   onTap?: () => void;
-  onCenterTap?: () => void;
   theme: {
     text: string;
     backgroundRoot: string;
@@ -56,8 +55,6 @@ interface UnifiedScrollReaderProps {
     autoScrollSpeed?: number;
     tapScrollAnimationSpeed?: number;
     tapScrollLinePosition?: TapScrollLinePositionType;
-    readerPaddingTop?: number;
-    readerPaddingBottom?: number;
   };
   initialPosition?: number;
   onAutoScrollStateChange?: (isPlaying: boolean) => void;
@@ -91,7 +88,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   scrollMode,
   onScrollProgress,
   onTap,
-  onCenterTap,
   theme,
   settings,
   initialPosition = 0,
@@ -131,10 +127,8 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const tapHintOpacity = useSharedValue(0);
 
   const lineHeight = settings.fontSize * settings.lineSpacing;
-  const customPaddingTop = settings.readerPaddingTop ?? 40;
-  const customPaddingBottom = settings.readerPaddingBottom ?? 60;
-  const paddingTop = insets.top + customPaddingTop;
-  const paddingBottom = insets.bottom + customPaddingBottom + progressBarHeight;
+  const paddingTop = insets.top + 60;
+  const paddingBottom = insets.bottom + 60 + progressBarHeight;
   
   const autoScrollSpeed = Math.max(5, Math.min(settings.autoScrollSpeed || 50, 200));
   const tapScrollAnimationSpeed = Math.max(50, Math.min(settings.tapScrollAnimationSpeed || 300, 1000));
@@ -273,7 +267,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     return lastVisibleIndex;
   }, [currentScrollY, viewportHeight, paddingTop, paddingBottom, textContainerY]);
 
-  const scrollToLineIndex = useCallback((lineIndex: number, highlight: boolean = true) => {
+  const scrollToLineIndex = useCallback((lineIndex: number, position: "top" | "center" = "top", highlight: boolean = true) => {
     const lines = measuredLinesRef.current;
     if (lineIndex < 0 || lineIndex >= lines.length) return;
     
@@ -281,7 +275,13 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     const textAreaTop = paddingTop + textContainerY;
     const lineAbsoluteY = textAreaTop + line.y;
     
-    const targetY = lineAbsoluteY - paddingTop;
+    let targetY: number;
+    if (position === "center") {
+      const viewportCenter = viewportHeight / 2;
+      targetY = lineAbsoluteY - viewportCenter + line.height / 2;
+    } else {
+      targetY = lineAbsoluteY - paddingTop;
+    }
     
     const maxScroll = contentHeight - viewportHeight + paddingTop + paddingBottom;
     const clampedTargetY = Math.max(0, Math.min(targetY, maxScroll));
@@ -329,21 +329,12 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
     
     const lines = measuredLinesRef.current;
-    let targetLineIndex: number;
-    
-    if (tapScrollLinePosition === "center") {
-      targetLineIndex = findMiddleVisibleLineIndex();
-      if (targetLineIndex < 0) {
-        targetLineIndex = findLastVisibleLineIndex();
-      }
-    } else {
-      targetLineIndex = findLastVisibleLineIndex();
-    }
+    const targetLineIndex = findLastVisibleLineIndex();
     
     if (targetLineIndex >= 0 && targetLineIndex < lines.length - 1) {
-      scrollToLineIndex(targetLineIndex, true);
+      scrollToLineIndex(targetLineIndex, tapScrollLinePosition, true);
     }
-  }, [findLastVisibleLineIndex, findMiddleVisibleLineIndex, scrollToLineIndex, showTapHintOverlay, tapHintOpacity, tapScrollLinePosition]);
+  }, [findLastVisibleLineIndex, scrollToLineIndex, showTapHintOverlay, tapHintOpacity, tapScrollLinePosition]);
 
   const updateScrollYFromWorklet = useCallback((y: number) => {
     setCurrentScrollY(y);
@@ -417,14 +408,11 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const handleRightTap = useCallback(() => {
     if (scrollMode === "tapScroll") {
       handleTapScroll();
-    } else if (scrollMode === "autoScroll") {
-      toggleAutoScroll();
     }
-  }, [scrollMode, handleTapScroll, toggleAutoScroll]);
+  }, [scrollMode, handleTapScroll]);
 
   const handleCenterTap = useCallback(() => {
-    onCenterTap?.();
-  }, [onCenterTap]);
+  }, []);
 
   const handleLeftTap = useCallback(() => {
     if (scrollMode === "autoScroll" && isAutoScrollPlaying) {
@@ -622,19 +610,11 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       .maxDuration(200)
       .onEnd((event) => {
         const x = event.x;
-        const y = event.y;
-        const centerXStart = SCREEN_WIDTH * 0.25;
-        const centerXEnd = SCREEN_WIDTH * 0.75;
-        const centerYStart = SCREEN_HEIGHT * 0.25;
-        const centerYEnd = SCREEN_HEIGHT * 0.75;
-        
-        if (x >= centerXStart && x <= centerXEnd && y >= centerYStart && y <= centerYEnd) {
-          runOnJS(handleCenterTap)();
-        } else {
+        if (x < leftZoneWidth) {
           runOnJS(handleLeftTap)();
         }
       });
-  }, [handleCenterTap, handleLeftTap]);
+  }, [handleLeftTap, leftZoneWidth]);
 
   const isSeamless = scrollMode === "seamless";
 
@@ -682,8 +662,9 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
             style={[styles.tapZone, { width: leftZoneWidth }]} 
             onPress={handleLeftTap}
           />
+          <View style={[styles.tapZone, { width: centerZoneWidth }]} />
           <Pressable 
-            style={[styles.tapZone, { width: centerZoneWidth + rightZoneWidth }]} 
+            style={[styles.tapZone, { width: rightZoneWidth }]} 
             onPress={handleRightTap}
           />
         </View>

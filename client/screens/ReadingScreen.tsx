@@ -25,7 +25,7 @@ import Animated, {
   Extrapolation,
 } from "react-native-reanimated";
 
-import { Spacing, Fonts, Motion, ReadingDefaults, ScrollModes, ScrollMode, TapScrollLinePosition, TapScrollLinePositionType, AutoScrollDefaults, TapScrollDefaults, ThemeMode, Colors } from "@/constants/theme";
+import { Spacing, Fonts, Motion, ReadingDefaults, ScrollModes, ScrollMode, TapScrollLinePosition, TapScrollLinePositionType, AutoScrollDefaults, TapScrollDefaults, ThemeMode } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { useReading, Book } from "@/contexts/ReadingContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -404,7 +404,6 @@ export default function ReadingScreen() {
         scrollMode={settings.scrollMode}
         onScrollProgress={handleScrollProgress}
         onTap={toggleUI}
-        onCenterTap={openSettingsPanel}
         onError={(err) => console.error("Reader error:", err)}
         theme={{ 
           text: theme.text, 
@@ -423,8 +422,6 @@ export default function ReadingScreen() {
           autoScrollSpeed: settings.autoScrollSpeed,
           tapScrollAnimationSpeed: settings.tapScrollAnimationSpeed,
           tapScrollLinePosition: settings.tapScrollLinePosition,
-          readerPaddingTop: settings.readerPaddingTop,
-          readerPaddingBottom: settings.readerPaddingBottom,
         }}
         progressBarHeight={settings.showReadingProgress ? PROGRESS_BAR_HEIGHT : 0}
         pauseAutoScroll={pauseAutoScrollIfPlaying}
@@ -528,96 +525,104 @@ export default function ReadingScreen() {
               )}
 
               {settings.scrollMode === "tapScroll" && (
-                <>
-                  <View style={styles.settingsSection}>
-                    <View style={styles.sliderHeader}>
-                      <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Animation Speed</ThemedText>
-                      <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.tapScrollAnimationSpeed} ms</ThemedText>
+                <View style={styles.settingsSection}>
+                  <View style={styles.sliderHeader}>
+                    <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Animation Speed</ThemedText>
+                    <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.tapScrollAnimationSpeed} ms</ThemedText>
+                  </View>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={TapScrollDefaults.minAnimationSpeed}
+                    maximumValue={TapScrollDefaults.maxAnimationSpeed}
+                    step={50}
+                    value={settings.tapScrollAnimationSpeed}
+                    onValueChange={(value) => updateSettings({ tapScrollAnimationSpeed: value })}
+                    minimumTrackTintColor={theme.accent}
+                    maximumTrackTintColor={theme.backgroundTertiary}
+                    thumbTintColor={theme.accent}
+                  />
+                  <ThemedText style={[styles.settingsLabel, { color: theme.text, marginTop: 12 }]}>
+                    Scroll Target Position
+                  </ThemedText>
+                  <View style={styles.tapScrollPositionOptions}>
+                    {(Object.keys(TapScrollLinePosition) as TapScrollLinePositionType[]).map((position) => {
+                      const isSelected = settings.tapScrollLinePosition === position;
+                      return (
+                        <Pressable
+                          key={position}
+                          style={[
+                            styles.tapScrollPositionOption,
+                            { backgroundColor: isSelected ? theme.accent : theme.backgroundSecondary },
+                          ]}
+                          onPress={() => {
+                            triggerHaptic();
+                            updateSettings({ tapScrollLinePosition: position });
+                          }}
+                        >
+                          <ThemedText style={[styles.tapScrollPositionLabel, { color: isSelected ? "#FFFFFF" : theme.text }]}>
+                            {TapScrollLinePosition[position].name}
+                          </ThemedText>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.settingsSection}>
+                <ThemedText style={[styles.settingsSectionTitle, { color: theme.text }]}>
+                  Text Appearance
+                </ThemedText>
+                <View style={[styles.previewContainer, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                  <ThemedText 
+                    style={{ 
+                      fontSize: settings.fontSize, 
+                      lineHeight: settings.fontSize * settings.lineSpacing,
+                      color: theme.text,
+                      fontFamily: getFontFamily(),
+                    }}
+                    numberOfLines={3}
+                  >
+                    The quick brown fox jumps over the lazy dog. This is a preview of your reading settings.
+                  </ThemedText>
+                </View>
+                <View style={styles.compactControls}>
+                  <View style={styles.compactSliderRow}>
+                    <View style={styles.compactLabelRow}>
+                      <Feather name="type" size={14} color={theme.secondaryText} />
+                      <ThemedText style={[styles.compactLabel, { color: theme.secondaryText }]}>Size</ThemedText>
                     </View>
                     <Slider
-                      style={styles.slider}
-                      minimumValue={TapScrollDefaults.minAnimationSpeed}
-                      maximumValue={TapScrollDefaults.maxAnimationSpeed}
-                      step={50}
-                      value={settings.tapScrollAnimationSpeed}
-                      onValueChange={(value) => updateSettings({ tapScrollAnimationSpeed: value })}
+                      style={styles.compactSlider}
+                      minimumValue={ReadingDefaults.minFontSize}
+                      maximumValue={ReadingDefaults.maxFontSize}
+                      value={settings.fontSize}
+                      onValueChange={(value) => updateSettings({ fontSize: value })}
                       minimumTrackTintColor={theme.accent}
                       maximumTrackTintColor={theme.backgroundTertiary}
                       thumbTintColor={theme.accent}
                     />
+                    <ThemedText style={[styles.compactValue, { color: theme.text }]}>{Math.round(settings.fontSize)}</ThemedText>
                   </View>
-                </>
-              )}
-
-              <View style={styles.settingsSection}>
-                <View style={styles.sliderHeader}>
-                  <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Font Size</ThemedText>
-                  <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{Math.round(settings.fontSize)} pt</ThemedText>
+                  <View style={styles.compactSliderRow}>
+                    <View style={styles.compactLabelRow}>
+                      <Feather name="align-justify" size={14} color={theme.secondaryText} />
+                      <ThemedText style={[styles.compactLabel, { color: theme.secondaryText }]}>Spacing</ThemedText>
+                    </View>
+                    <Slider
+                      style={styles.compactSlider}
+                      minimumValue={ReadingDefaults.minLineSpacing}
+                      maximumValue={ReadingDefaults.maxLineSpacing}
+                      step={0.1}
+                      value={settings.lineSpacing}
+                      onValueChange={(value) => updateSettings({ lineSpacing: value })}
+                      minimumTrackTintColor={theme.accent}
+                      maximumTrackTintColor={theme.backgroundTertiary}
+                      thumbTintColor={theme.accent}
+                    />
+                    <ThemedText style={[styles.compactValue, { color: theme.text }]}>{settings.lineSpacing.toFixed(1)}</ThemedText>
+                  </View>
                 </View>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={ReadingDefaults.minFontSize}
-                  maximumValue={ReadingDefaults.maxFontSize}
-                  value={settings.fontSize}
-                  onValueChange={(value) => updateSettings({ fontSize: value })}
-                  minimumTrackTintColor={theme.accent}
-                  maximumTrackTintColor={theme.backgroundTertiary}
-                  thumbTintColor={theme.accent}
-                />
-              </View>
-
-              <View style={styles.settingsSection}>
-                <View style={styles.sliderHeader}>
-                  <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Line Spacing</ThemedText>
-                  <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.lineSpacing.toFixed(1)}</ThemedText>
-                </View>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={ReadingDefaults.minLineSpacing}
-                  maximumValue={ReadingDefaults.maxLineSpacing}
-                  step={0.1}
-                  value={settings.lineSpacing}
-                  onValueChange={(value) => updateSettings({ lineSpacing: value })}
-                  minimumTrackTintColor={theme.accent}
-                  maximumTrackTintColor={theme.backgroundTertiary}
-                  thumbTintColor={theme.accent}
-                />
-              </View>
-
-              <View style={styles.settingsSection}>
-                <View style={styles.sliderHeader}>
-                  <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Top Padding</ThemedText>
-                  <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.readerPaddingTop} px</ThemedText>
-                </View>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={ReadingDefaults.minPadding}
-                  maximumValue={ReadingDefaults.maxPadding}
-                  step={5}
-                  value={settings.readerPaddingTop}
-                  onValueChange={(value) => updateSettings({ readerPaddingTop: value })}
-                  minimumTrackTintColor={theme.accent}
-                  maximumTrackTintColor={theme.backgroundTertiary}
-                  thumbTintColor={theme.accent}
-                />
-              </View>
-
-              <View style={styles.settingsSection}>
-                <View style={styles.sliderHeader}>
-                  <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Bottom Padding</ThemedText>
-                  <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.readerPaddingBottom} px</ThemedText>
-                </View>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={ReadingDefaults.minPadding}
-                  maximumValue={ReadingDefaults.maxPadding}
-                  step={5}
-                  value={settings.readerPaddingBottom}
-                  onValueChange={(value) => updateSettings({ readerPaddingBottom: value })}
-                  minimumTrackTintColor={theme.accent}
-                  maximumTrackTintColor={theme.backgroundTertiary}
-                  thumbTintColor={theme.accent}
-                />
               </View>
 
               <View style={styles.settingsSection}>
@@ -1039,5 +1044,55 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  previewContainer: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  compactControls: {
+    gap: 12,
+  },
+  compactSliderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  compactLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    width: 70,
+  },
+  compactLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  compactSlider: {
+    flex: 1,
+    height: 32,
+  },
+  compactValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    width: 32,
+    textAlign: "right",
+  },
+  tapScrollPositionOptions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+  },
+  tapScrollPositionOption: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tapScrollPositionLabel: {
+    fontSize: 12,
+    fontWeight: "500",
   },
 });

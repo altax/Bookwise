@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -30,6 +31,7 @@ export function ReadingTimer({
   showTimer = true,
 }: ReadingTimerProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [showBreakReminder, setShowBreakReminder] = useState(false);
@@ -129,7 +131,7 @@ export function ReadingTimer({
   if (!visible) return null;
 
   return (
-    <Animated.View style={[styles.container, animatedContainerStyle]}>
+    <Animated.View style={[styles.container, { paddingTop: insets.top + 8 }, animatedContainerStyle]}>
       {showTimer && (
         <Animated.View style={[styles.timerBadge, animatedPulseStyle, { backgroundColor: focusMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]}>
           <Pressable onPress={togglePause} style={styles.timerContent}>
@@ -185,7 +187,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
-    marginTop: Spacing.sm,
   },
   timerContent: {
     flexDirection: "row",
