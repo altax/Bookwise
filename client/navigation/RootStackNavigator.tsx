@@ -1,12 +1,15 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import ModalScreen from "@/screens/ModalScreen";
+import ReadingScreen from "@/screens/ReadingScreen";
+import TableOfContentsScreen from "@/screens/TableOfContentsScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { Book } from "@/contexts/ReadingContext";
 
 export type RootStackParamList = {
   Main: undefined;
-  Modal: undefined;
+  Reading: { book: Book };
+  TableOfContents: { book: Book; chapters: { title: string; page: number }[] };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -22,11 +25,19 @@ export default function RootStackNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="Modal"
-        component={ModalScreen}
+        name="Reading"
+        component={ReadingScreen}
+        options={{
+          headerShown: false,
+          animation: "fade",
+        }}
+      />
+      <Stack.Screen
+        name="TableOfContents"
+        component={TableOfContentsScreen}
         options={{
           presentation: "modal",
-          headerTitle: "Modal",
+          headerTitle: "Table of Contents",
         }}
       />
     </Stack.Navigator>

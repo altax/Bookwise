@@ -3,13 +3,13 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet } from "react-native";
-import HomeStackNavigator from "@/navigation/HomeStackNavigator";
-import ProfileStackNavigator from "@/navigation/ProfileStackNavigator";
+import LibraryStackNavigator from "@/navigation/LibraryStackNavigator";
+import SettingsStackNavigator from "@/navigation/SettingsStackNavigator";
 import { useTheme } from "@/hooks/useTheme";
 
 export type MainTabParamList = {
-  HomeTab: undefined;
-  ProfileTab: undefined;
+  LibraryTab: undefined;
+  SettingsTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -19,7 +19,7 @@ export default function MainTabNavigator() {
 
   return (
     <Tab.Navigator
-      initialRouteName="HomeTab"
+      initialRouteName="LibraryTab"
       screenOptions={{
         tabBarActiveTintColor: theme.tabIconSelected,
         tabBarInactiveTintColor: theme.tabIconDefault,
@@ -44,22 +44,22 @@ export default function MainTabNavigator() {
       }}
     >
       <Tab.Screen
-        name="HomeTab"
-        component={HomeStackNavigator}
+        name="LibraryTab"
+        component={LibraryStackNavigator}
         options={{
-          title: "Home",
+          title: "Library",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="home" size={size} color={color} />
+            <Feather name="book-open" size={size} color={color} />
           ),
         }}
       />
       <Tab.Screen
-        name="ProfileTab"
-        component={ProfileStackNavigator}
+        name="SettingsTab"
+        component={SettingsStackNavigator}
         options={{
-          title: "Profile",
+          title: "Settings",
           tabBarIcon: ({ color, size }) => (
-            <Feather name="user" size={size} color={color} />
+            <Feather name="sliders" size={size} color={color} />
           ),
         }}
       />
