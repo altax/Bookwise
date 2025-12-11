@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
-  ScrollView,
   StyleSheet,
   Pressable,
   Dimensions,
   Platform,
-  Text,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -18,7 +16,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
-  withSpring,
   interpolate,
   Extrapolation,
   runOnJS,
@@ -28,7 +25,7 @@ import {
   GestureDetector,
 } from "react-native-gesture-handler";
 
-import { Colors, Spacing, BorderRadius, Fonts, Motion, ReadingDefaults } from "@/constants/theme";
+import { Spacing, Fonts, Motion, ReadingDefaults } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { useReading, Book } from "@/contexts/ReadingContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -36,11 +33,11 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { NoteModal } from "@/components/NoteModal";
 import { SearchModal } from "@/components/SearchModal";
 import { GlassCard } from "@/components/GlassCard";
-import { BionicText } from "@/components/BionicText";
 import { BookmarkRibbon } from "@/components/BookmarkRibbon";
 import { ReadingTimer } from "@/components/ReadingTimer";
 import { SkeletonReader } from "@/components/Skeleton";
-import { EpubReader, PdfReader, Fb2Reader, TxtReader } from "@/components/readers";
+import { EpubReader, PdfReader, SmartScrollReader } from "@/components/readers";
+import type { SmartScrollReaderRef } from "@/components/readers/SmartScrollReader";
 import { BookParserService, ParsedBook } from "@/services/BookParserService";
 
 type ReadingRouteProp = RouteProp<RootStackParamList, "Reading">;
@@ -86,9 +83,10 @@ export default function ReadingScreen() {
 
   const startPageRef = useRef(currentPage);
   const sessionStartRef = useRef(Date.now());
+  const smartReaderRef = useRef<SmartScrollReaderRef>(null);
+  const [scrollProgress, setScrollProgress] = useState(0);
 
   const uiOpacity = useSharedValue(0);
-  const pageTransition = useSharedValue(0);
 
   useEffect(() => {
     loadBookContent();
@@ -230,35 +228,20 @@ export default function ReadingScreen() {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  const handlePageChange = useCallback((direction: "next" | "prev") => {
-    if (direction === "next" && currentPage < totalPages - 1) {
-      if (settings.animationsEnabled) {
-        pageTransition.value = withSpring(1, {
-          damping: Motion.easing.springSnappy.damping,
-          stiffness: Motion.easing.springSnappy.stiffness,
-        }, () => {
-          runOnJS(setCurrentPage)(currentPage + 1);
-          pageTransition.value = 0;
-        });
-      } else {
-        setCurrentPage(currentPage + 1);
-      }
-      triggerHaptic();
-    } else if (direction === "prev" && currentPage > 0) {
-      if (settings.animationsEnabled) {
-        pageTransition.value = withSpring(-1, {
-          damping: Motion.easing.springSnappy.damping,
-          stiffness: Motion.easing.springSnappy.stiffness,
-        }, () => {
-          runOnJS(setCurrentPage)(currentPage - 1);
-          pageTransition.value = 0;
-        });
-      } else {
-        setCurrentPage(currentPage - 1);
-      }
+  const handleSmartTap = useCallback(() => {
+    if (smartReaderRef.current) {
+      smartReaderRef.current.handleTapToScroll();
       triggerHaptic();
     }
-  }, [currentPage, totalPages, settings.animationsEnabled, triggerHaptic]);
+  }, [triggerHaptic]);
+
+  const handleScrollProgress = useCallback((progress: number, currentPosition: number, totalHeight: number) => {
+    setScrollProgress(progress);
+    const estimatedPage = Math.floor(progress * totalPages);
+    if (estimatedPage !== currentPage) {
+      setCurrentPage(Math.min(estimatedPage, totalPages - 1));
+    }
+  }, [totalPages, currentPage]);
 
   const handleTableOfContents = () => {
     const chapters = parsedBook?.chapters || [
@@ -314,9 +297,9 @@ export default function ReadingScreen() {
       const screenThird = SCREEN_WIDTH / 3;
 
       if (tapX < screenThird) {
-        runOnJS(handlePageChange)("prev");
+        runOnJS(toggleUI)();
       } else if (tapX > screenThird * 2) {
-        runOnJS(handlePageChange)("next");
+        runOnJS(handleSmartTap)();
       } else {
         runOnJS(toggleUI)();
       }
@@ -333,9 +316,8 @@ export default function ReadingScreen() {
 
   const composedGesture = Gesture.Exclusive(longPressGesture, tapGesture);
 
-  const progress = totalPages > 0 ? ((currentPage + 1) / totalPages) * 100 : 0;
-  const remainingPages = totalPages - currentPage - 1;
-  const remainingTime = Math.ceil((remainingPages / totalPages) * estimatedReadingTime);
+  const progress = scrollProgress * 100;
+  const remainingTime = Math.ceil((1 - scrollProgress) * estimatedReadingTime);
 
   const headerAnimatedStyle = useAnimatedStyle(() => ({
     opacity: uiOpacity.value,
@@ -365,25 +347,6 @@ export default function ReadingScreen() {
       },
     ],
     pointerEvents: uiOpacity.value > 0.5 ? "auto" : "none",
-  }));
-
-  const pageAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(
-          pageTransition.value,
-          [-1, 0, 1],
-          [SCREEN_WIDTH * 0.1, 0, -SCREEN_WIDTH * 0.1],
-          Extrapolation.CLAMP
-        ),
-      },
-    ],
-    opacity: interpolate(
-      Math.abs(pageTransition.value),
-      [0, 0.5, 1],
-      [1, 0.8, 1],
-      Extrapolation.CLAMP
-    ),
   }));
 
   const getFontFamily = () => {
@@ -448,14 +411,19 @@ export default function ReadingScreen() {
       );
     }
 
-    if (book.fileType === "fb2") {
+    if (book.fileType === "fb2" || book.fileType === "txt" || content) {
       return (
-        <Fb2Reader
-          fileUri={book.fileUri}
-          currentPage={currentPage}
-          onContentLoaded={handleFb2ContentLoaded}
-          onError={(err) => console.error("FB2 error:", err)}
-          theme={{ text: theme.text, backgroundRoot: theme.backgroundRoot, secondaryText: theme.secondaryText }}
+        <SmartScrollReader
+          ref={smartReaderRef}
+          content={content}
+          onScrollProgress={handleScrollProgress}
+          onError={(err) => console.error("Reader error:", err)}
+          theme={{ 
+            text: theme.text, 
+            backgroundRoot: theme.backgroundRoot, 
+            secondaryText: theme.secondaryText,
+            highlightColor: 'rgba(255, 215, 0, 0.5)',
+          }}
           settings={{
             fontSize: settings.fontSize,
             lineSpacing: settings.lineSpacing,
@@ -469,52 +437,7 @@ export default function ReadingScreen() {
       );
     }
 
-    if (book.fileType === "txt") {
-      return (
-        <TxtReader
-          fileUri={book.fileUri}
-          currentPage={currentPage}
-          onContentLoaded={handleTxtContentLoaded}
-          onError={(err) => console.error("TXT error:", err)}
-          theme={{ text: theme.text, backgroundRoot: theme.backgroundRoot, secondaryText: theme.secondaryText }}
-          settings={{
-            fontSize: settings.fontSize,
-            lineSpacing: settings.lineSpacing,
-            fontFamily: settings.fontFamily,
-            marginHorizontal: settings.marginHorizontal,
-            letterSpacing: settings.letterSpacing,
-            textAlignment: settings.textAlignment,
-            bionicReading: settings.bionicReading,
-          }}
-        />
-      );
-    }
-
-    return (
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.textContent,
-          {
-            paddingHorizontal: settings.marginHorizontal,
-            paddingTop: insets.top + (settings.focusMode ? Spacing["5xl"] : Spacing["3xl"]),
-            paddingBottom: insets.bottom + 100,
-          },
-        ]}
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-      >
-        {settings.bionicReading ? (
-          <BionicText style={getTextStyle()} enabled={true}>
-            {content}
-          </BionicText>
-        ) : (
-          <Text style={[styles.bookText, getTextStyle()]}>
-            {content}
-          </Text>
-        )}
-      </ScrollView>
-    );
+    return null;
   };
 
   const shouldUseGestures = book.fileType === "txt" || book.fileType === "fb2" || (book.fileType === "epub" && !useNativeReader);
@@ -529,9 +452,9 @@ export default function ReadingScreen() {
 
       {shouldUseGestures ? (
         <GestureDetector gesture={composedGesture}>
-          <Animated.View style={[styles.contentContainer, settings.animationsEnabled ? pageAnimatedStyle : undefined]}>
+          <View style={styles.contentContainer}>
             {renderReader()}
-          </Animated.View>
+          </View>
         </GestureDetector>
       ) : (
         <View style={styles.contentContainer}>
