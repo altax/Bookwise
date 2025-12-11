@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { AppState, AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ReadingDefaults, ThemeMode, AvailableFonts, ReadingMode, ReadingModes, ScrollMode, AutoScrollDefaults } from "@/constants/theme";
+import { ReadingDefaults, ThemeMode, AvailableFonts, ReadingMode, ReadingModes, ScrollMode, AutoScrollDefaults, LinearFocusDefaults } from "@/constants/theme";
 
 export interface Book {
   id: string;
@@ -86,6 +86,8 @@ interface ReadingSettings {
   appTheme: AppTheme;
   autoAppTheme: boolean;
   showReadingTime: boolean;
+  linearFocusVisibleLines: number;
+  linearFocusHighlightLine: boolean;
 }
 
 interface ReadingContextType {
@@ -135,6 +137,8 @@ const defaultSettings: ReadingSettings = {
   appTheme: "light",
   autoAppTheme: true,
   showReadingTime: true,
+  linearFocusVisibleLines: LinearFocusDefaults.defaultVisibleLines,
+  linearFocusHighlightLine: LinearFocusDefaults.highlightCurrentLine,
 };
 
 const defaultStats: ReadingStats = {

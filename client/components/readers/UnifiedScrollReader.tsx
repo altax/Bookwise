@@ -53,6 +53,8 @@ interface UnifiedScrollReaderProps {
     textAlignment: "left" | "justify";
     bionicReading: boolean;
     autoScrollSpeed?: number;
+    linearFocusVisibleLines?: number;
+    linearFocusHighlightLine?: boolean;
   };
   initialPosition?: number;
   onAutoScrollStateChange?: (isPlaying: boolean) => void;
@@ -120,6 +122,11 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const [isAutoScrollPlaying, setIsAutoScrollPlaying] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(false);
   const hasUserStartedReadingRef = useRef(false);
+  
+  const [linearFocusCurrentLine, setLinearFocusCurrentLine] = useState(0);
+  const [showLinearFocusOverlay, setShowLinearFocusOverlay] = useState(false);
+  const linearFocusVisibleLines = settings.linearFocusVisibleLines || 1;
+  const linearFocusHighlightLine = settings.linearFocusHighlightLine !== false;
   
   const highlightOpacity = useSharedValue(0);
   const animatedScrollY = useSharedValue(0);
@@ -492,6 +499,71 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
   }, [scrollMode, isReady, contentHeight]);
 
+  useEffect(() => {
+    if (scrollMode === "linearFocus" && isReady && contentHeight > 0) {
+      setShowLinearFocusOverlay(true);
+      setLinearFocusCurrentLine(0);
+      const lines = measuredLinesRef.current;
+      if (lines.length > 0) {
+        scrollTo(animatedScrollViewRef, 0, 0, true);
+      }
+    } else if (scrollMode !== "linearFocus") {
+      setShowLinearFocusOverlay(false);
+    }
+  }, [scrollMode, isReady, contentHeight]);
+
+  const handleLinearFocusAdvance = useCallback(() => {
+    const lines = measuredLinesRef.current;
+    if (lines.length === 0) return;
+
+    const nonEmptyLines = lines.filter(line => line.text.trim().length > 0);
+    const currentNonEmptyIndex = nonEmptyLines.findIndex((_, idx) => {
+      let count = 0;
+      for (let i = 0; i <= idx; i++) {
+        const originalIndex = lines.findIndex(l => l === nonEmptyLines[i]);
+        if (originalIndex <= linearFocusCurrentLine) count++;
+      }
+      return count > linearFocusCurrentLine;
+    });
+
+    const nextLineIndex = linearFocusCurrentLine + linearFocusVisibleLines;
+    
+    if (nextLineIndex >= lines.length) {
+      return;
+    }
+
+    setLinearFocusCurrentLine(nextLineIndex);
+
+    const targetLine = lines[nextLineIndex];
+    if (targetLine) {
+      const textAreaTop = paddingTop + textContainerY;
+      const lineAbsoluteY = textAreaTop + targetLine.y;
+      const targetScrollY = Math.max(0, lineAbsoluteY - paddingTop - 20);
+      const maxScroll = Math.max(0, contentHeight - viewportHeight + paddingTop + paddingBottom);
+      const clampedY = Math.min(targetScrollY, maxScroll);
+      
+      animateScrollTo(clampedY, 300);
+    }
+  }, [linearFocusCurrentLine, linearFocusVisibleLines, paddingTop, textContainerY, contentHeight, viewportHeight, paddingBottom, animateScrollTo]);
+
+  const handleLinearFocusBack = useCallback(() => {
+    if (linearFocusCurrentLine <= 0) return;
+    
+    const lines = measuredLinesRef.current;
+    const prevLineIndex = Math.max(0, linearFocusCurrentLine - linearFocusVisibleLines);
+    
+    setLinearFocusCurrentLine(prevLineIndex);
+
+    const targetLine = lines[prevLineIndex];
+    if (targetLine) {
+      const textAreaTop = paddingTop + textContainerY;
+      const lineAbsoluteY = textAreaTop + targetLine.y;
+      const targetScrollY = Math.max(0, lineAbsoluteY - paddingTop - 20);
+      
+      animateScrollTo(targetScrollY, 300);
+    }
+  }, [linearFocusCurrentLine, linearFocusVisibleLines, paddingTop, textContainerY, animateScrollTo]);
+
   const handleStartReading = useCallback(() => {
     hasUserStartedReadingRef.current = true;
     setShowStartOverlay(false);
@@ -602,6 +674,10 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     scrollEnabled: !isAutoScrollPlaying,
     showsVerticalScrollIndicator: false,
     decelerationRate: "normal" as const,
+  } : scrollMode === "linearFocus" ? {
+    scrollEnabled: false,
+    showsVerticalScrollIndicator: false,
+    decelerationRate: "normal" as const,
   } : {
     scrollEnabled: true,
     showsVerticalScrollIndicator: false,
@@ -625,6 +701,76 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [handleLeftTap, leftZoneWidth]);
 
   const isSeamless = scrollMode === "seamless";
+  const isLinearFocus = scrollMode === "linearFocus";
+
+  const renderLinearFocusOverlay = () => {
+    if (!isLinearFocus || !showLinearFocusOverlay) return null;
+    
+    const lines = measuredLinesRef.current;
+    if (lines.length === 0) return null;
+
+    const visibleLineIndices: number[] = [];
+    for (let i = 0; i < linearFocusVisibleLines && linearFocusCurrentLine + i < lines.length; i++) {
+      visibleLineIndices.push(linearFocusCurrentLine + i);
+    }
+
+    const firstVisibleLine = lines[visibleLineIndices[0]];
+    const lastVisibleLine = lines[visibleLineIndices[visibleLineIndices.length - 1]];
+    
+    if (!firstVisibleLine || !lastVisibleLine) return null;
+
+    const visibleTop = firstVisibleLine.y;
+    const visibleBottom = lastVisibleLine.y + lastVisibleLine.height;
+    const visibleHeight = visibleBottom - visibleTop;
+
+    return (
+      <>
+        {visibleTop > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: visibleTop,
+              backgroundColor: theme.backgroundRoot,
+              opacity: 0.85,
+              zIndex: 5,
+            }}
+            pointerEvents="none"
+          />
+        )}
+        <View
+          style={{
+            position: 'absolute',
+            top: visibleBottom,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: theme.backgroundRoot,
+            opacity: 0.85,
+            zIndex: 5,
+          }}
+          pointerEvents="none"
+        />
+        {linearFocusHighlightLine && (
+          <View
+            style={{
+              position: 'absolute',
+              top: visibleTop - 4,
+              left: -8,
+              right: -8,
+              height: visibleHeight + 8,
+              backgroundColor: theme.highlightColor || 'rgba(99, 102, 241, 0.12)',
+              borderRadius: 8,
+              zIndex: 4,
+            }}
+            pointerEvents="none"
+          />
+        )}
+      </>
+    );
+  };
 
   const containerContent = (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]} onLayout={handleViewportLayout}>
@@ -660,6 +806,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
                 ]}
               />
             )}
+            {renderLinearFocusOverlay()}
           </View>
         </View>
       </Animated.ScrollView>
@@ -672,6 +819,31 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           />
           <View style={[styles.tapZone, { width: centerZoneWidth }]} />
           <View style={[styles.tapZone, { width: rightZoneWidth }]} />
+        </View>
+      )}
+
+      {isLinearFocus && (
+        <View style={styles.tapZonesContainer} pointerEvents="box-none">
+          <Pressable 
+            style={[styles.tapZone, { width: screenWidth * 0.25 }]} 
+            onPress={handleLinearFocusBack}
+          />
+          <View style={[styles.tapZone, { width: screenWidth * 0.15 }]} />
+          <Pressable 
+            style={[styles.tapZone, { width: screenWidth * 0.60 }]} 
+            onPress={handleLinearFocusAdvance}
+          />
+        </View>
+      )}
+
+      {isLinearFocus && (
+        <View style={styles.linearFocusIndicator}>
+          <View style={[styles.linearFocusBadge, { backgroundColor: theme.backgroundRoot + 'E6' }]}>
+            <Feather name="eye" size={12} color={theme.text} />
+            <Text style={[styles.linearFocusText, { color: theme.text }]}>
+              Line {linearFocusCurrentLine + 1}/{measuredLinesRef.current.length || '?'}
+            </Text>
+          </View>
         </View>
       )}
 
@@ -838,6 +1010,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   autoScrollText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  linearFocusIndicator: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    zIndex: 50,
+  },
+  linearFocusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  linearFocusText: {
     fontSize: 11,
     fontWeight: "500",
   },

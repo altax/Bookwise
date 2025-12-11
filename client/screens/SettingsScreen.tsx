@@ -8,7 +8,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode, ScrollModes, ScrollMode, AutoScrollDefaults } from "@/constants/theme";
+import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode, ScrollModes, ScrollMode, AutoScrollDefaults, LinearFocusDefaults } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useReading } from "@/contexts/ReadingContext";
@@ -258,7 +258,7 @@ export default function SettingsScreen() {
             {(Object.keys(ScrollModes) as ScrollMode[]).map((mode) => {
               const modeData = ScrollModes[mode];
               const isSelected = settings.scrollMode === mode;
-              const iconName = mode === "seamless" ? "arrow-down" : "play";
+              const iconName = mode === "seamless" ? "arrow-down" : mode === "linearFocus" ? "eye" : "play";
               return (
                 <Pressable
                   key={mode}
@@ -322,6 +322,50 @@ export default function SettingsScreen() {
                 maximumTrackTintColor={theme.backgroundTertiary}
                 thumbTintColor={theme.accent}
               />
+            </View>
+          )}
+
+          {settings.scrollMode === "linearFocus" && (
+            <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
+              <View style={styles.settingRow}>
+                <View style={styles.settingLabelRow}>
+                  <Feather name="layers" size={20} color={theme.text} />
+                  <View>
+                    <ThemedText style={styles.settingLabel}>Visible Lines</ThemedText>
+                    <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                      {settings.linearFocusVisibleLines} line{settings.linearFocusVisibleLines > 1 ? 's' : ''} at a time
+                    </ThemedText>
+                  </View>
+                </View>
+              </View>
+              <Slider
+                style={styles.slider}
+                minimumValue={LinearFocusDefaults.minVisibleLines}
+                maximumValue={LinearFocusDefaults.maxVisibleLines}
+                step={1}
+                value={settings.linearFocusVisibleLines}
+                onValueChange={(value) => updateSettings({ linearFocusVisibleLines: value })}
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={theme.backgroundTertiary}
+                thumbTintColor={theme.accent}
+              />
+              <View style={[styles.settingRow, { marginTop: Spacing.md }]}>
+                <View style={styles.settingLabelRow}>
+                  <Feather name="sun" size={20} color={theme.text} />
+                  <View>
+                    <ThemedText style={styles.settingLabel}>Highlight Current Line</ThemedText>
+                    <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                      Add subtle background to focused line
+                    </ThemedText>
+                  </View>
+                </View>
+                <Switch
+                  value={settings.linearFocusHighlightLine}
+                  onValueChange={(value) => handleToggle("linearFocusHighlightLine", value)}
+                  trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
             </View>
           )}
 

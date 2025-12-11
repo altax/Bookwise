@@ -355,6 +355,10 @@ export const ScrollModes = {
     name: "Auto Scroll",
     description: "Automatic scrolling at set speed",
   },
+  linearFocus: {
+    name: "Linear Focus",
+    description: "Line-by-line guided reading for ADHD",
+  },
 };
 
 export type ScrollMode = keyof typeof ScrollModes;
@@ -363,6 +367,14 @@ export const AutoScrollDefaults = {
   minSpeed: 10,
   maxSpeed: 200,
   defaultSpeed: 50,
+};
+
+export const LinearFocusDefaults = {
+  minVisibleLines: 1,
+  maxVisibleLines: 5,
+  defaultVisibleLines: 1,
+  highlightCurrentLine: true,
+  dimOpacity: 0.15,
 };
 
 export const Shadows = {
