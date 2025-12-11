@@ -30,7 +30,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import type { ScrollMode, TapScrollLinePositionType } from "@/constants/theme";
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
+const getScreenDimensions = () => Dimensions.get("window");
 
 interface UnifiedScrollReaderProps {
   content: string;
@@ -107,9 +107,17 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const isAutoScrollActive = useSharedValue(false);
   const autoScrollMaxY = useSharedValue(0);
   
+  const [screenDimensions, setScreenDimensions] = useState(() => getScreenDimensions());
   const [contentHeight, setContentHeight] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(SCREEN_HEIGHT);
+  const [viewportHeight, setViewportHeight] = useState(screenDimensions.height);
   const [currentScrollY, setCurrentScrollY] = useState(0);
+  
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setScreenDimensions(window);
+    });
+    return () => subscription?.remove();
+  }, []);
   const [highlightedLineY, setHighlightedLineY] = useState<number | null>(null);
   const [highlightedLineHeight, setHighlightedLineHeight] = useState(0);
   const [isReady, setIsReady] = useState(false);
@@ -244,28 +252,142 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     return closestIndex;
   }, [currentScrollY, viewportHeight, paddingTop, paddingBottom, textContainerY]);
 
-  const findLastVisibleLineIndex = useCallback((): number => {
+  const findBottomLineInfo = useCallback((): { 
+    lineIndex: number; 
+    isPartiallyVisible: boolean; 
+    visibleRatio: number;
+    line: MeasuredLine | null;
+  } => {
     const lines = measuredLinesRef.current;
-    if (lines.length === 0) return -1;
+    if (lines.length === 0) return { lineIndex: -1, isPartiallyVisible: false, visibleRatio: 0, line: null };
     
     const scrollOffset = currentScrollY;
     const textAreaTop = paddingTop + textContainerY;
+    const visibleTop = scrollOffset;
     const visibleBottom = scrollOffset + viewportHeight - paddingBottom;
     
-    let lastVisibleIndex = -1;
+    let lastFullyVisibleIndex = -1;
+    let partiallyVisibleIndex = -1;
+    let partialVisibleRatio = 0;
     
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      if (line.text.trim().length === 0) continue;
+      
       const lineAbsoluteTop = textAreaTop + line.y;
       const lineAbsoluteBottom = lineAbsoluteTop + line.height;
       
-      if (lineAbsoluteBottom <= visibleBottom && line.text.trim().length > 0) {
-        lastVisibleIndex = i;
+      if (lineAbsoluteTop >= visibleTop && lineAbsoluteBottom <= visibleBottom) {
+        lastFullyVisibleIndex = i;
+      }
+      
+      if (lineAbsoluteTop < visibleBottom && lineAbsoluteBottom > visibleBottom) {
+        partiallyVisibleIndex = i;
+        const visiblePart = visibleBottom - lineAbsoluteTop;
+        partialVisibleRatio = visiblePart / line.height;
       }
     }
     
-    return lastVisibleIndex;
+    if (partiallyVisibleIndex >= 0 && partialVisibleRatio >= 0.1 && partialVisibleRatio < 0.95) {
+      return { 
+        lineIndex: partiallyVisibleIndex, 
+        isPartiallyVisible: true, 
+        visibleRatio: partialVisibleRatio,
+        line: lines[partiallyVisibleIndex]
+      };
+    }
+    
+    if (lastFullyVisibleIndex >= 0) {
+      return { 
+        lineIndex: lastFullyVisibleIndex, 
+        isPartiallyVisible: false, 
+        visibleRatio: 1,
+        line: lines[lastFullyVisibleIndex]
+      };
+    }
+    
+    return { lineIndex: -1, isPartiallyVisible: false, visibleRatio: 0, line: null };
   }, [currentScrollY, viewportHeight, paddingTop, paddingBottom, textContainerY]);
+
+  const findLastVisibleLineIndex = useCallback((): number => {
+    return findBottomLineInfo().lineIndex;
+  }, [findBottomLineInfo]);
+
+  const scrollToLineTop = useCallback((lineIndex: number, duration: number, onComplete?: () => void) => {
+    const lines = measuredLinesRef.current;
+    if (lineIndex < 0 || lineIndex >= lines.length) {
+      onComplete?.();
+      return;
+    }
+    
+    const line = lines[lineIndex];
+    const textAreaTop = paddingTop + textContainerY;
+    const lineAbsoluteY = textAreaTop + line.y;
+    const targetY = lineAbsoluteY - paddingTop;
+    
+    const maxScroll = Math.max(0, contentHeight - viewportHeight + paddingTop + paddingBottom);
+    const clampedTargetY = Math.max(0, Math.min(targetY, maxScroll));
+    
+    animateScrollTo(clampedTargetY, duration);
+    
+    if (onComplete) {
+      setTimeout(onComplete, duration + 16);
+    }
+  }, [paddingTop, textContainerY, contentHeight, viewportHeight, paddingBottom, animateScrollTo]);
+
+  const scrollLineIntoFullView = useCallback((lineIndex: number, duration: number, onComplete?: () => void) => {
+    const lines = measuredLinesRef.current;
+    if (lineIndex < 0 || lineIndex >= lines.length) {
+      onComplete?.();
+      return;
+    }
+    
+    const line = lines[lineIndex];
+    const textAreaTop = paddingTop + textContainerY;
+    const lineAbsoluteBottom = textAreaTop + line.y + line.height;
+    const visibleBottom = currentScrollY + viewportHeight - paddingBottom;
+    
+    const scrollNeeded = lineAbsoluteBottom - visibleBottom + 4;
+    
+    if (scrollNeeded > 0) {
+      const targetY = currentScrollY + scrollNeeded;
+      const maxScroll = Math.max(0, contentHeight - viewportHeight + paddingTop + paddingBottom);
+      const clampedTargetY = Math.max(0, Math.min(targetY, maxScroll));
+      
+      animateScrollTo(clampedTargetY, duration);
+      
+      if (onComplete) {
+        setTimeout(onComplete, duration + 16);
+      }
+    } else {
+      onComplete?.();
+    }
+  }, [paddingTop, textContainerY, currentScrollY, viewportHeight, paddingBottom, contentHeight, animateScrollTo]);
+
+  const highlightLine = useCallback((lineIndex: number) => {
+    const lines = measuredLinesRef.current;
+    if (lineIndex < 0 || lineIndex >= lines.length) return;
+    
+    const line = lines[lineIndex];
+    
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+      highlightTimeoutRef.current = null;
+    }
+    
+    setHighlightedLineY(line.y);
+    setHighlightedLineHeight(line.height);
+    
+    highlightOpacity.value = withSequence(
+      withTiming(1, { duration: 50 }),
+      withTiming(0, { duration: 500, easing: Easing.out(Easing.quad) })
+    );
+    
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedLineY(null);
+      highlightTimeoutRef.current = null;
+    }, 600);
+  }, [highlightOpacity]);
 
   const scrollToLineIndex = useCallback((lineIndex: number, position: "top" | "center" = "top", highlight: boolean = true) => {
     const lines = measuredLinesRef.current;
@@ -296,45 +418,54 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }, animDuration + 100);
     
     if (highlight) {
-      if (highlightTimeoutRef.current) {
-        clearTimeout(highlightTimeoutRef.current);
-        highlightTimeoutRef.current = null;
-      }
-      
-      setHighlightedLineY(line.y);
-      setHighlightedLineHeight(line.height);
-      highlightOpacity.value = withSequence(
-        withTiming(1, { duration: 100 }),
-        withTiming(1, { duration: 500 }),
-        withTiming(0, { duration: 200 })
-      );
-      
-      highlightTimeoutRef.current = setTimeout(() => {
-        setHighlightedLineY(null);
-        highlightTimeoutRef.current = null;
-      }, 800);
+      highlightLine(lineIndex);
     }
-  }, [paddingTop, paddingBottom, textContainerY, contentHeight, highlightOpacity, viewportHeight, tapScrollAnimationSpeed, animateScrollTo]);
+  }, [paddingTop, paddingBottom, textContainerY, contentHeight, highlightOpacity, viewportHeight, tapScrollAnimationSpeed, animateScrollTo, highlightLine]);
 
   const handleTapScroll = useCallback(() => {
     const now = Date.now();
-    if (now - lastTapTimeRef.current < 250) return;
+    if (now - lastTapTimeRef.current < 200) return;
     lastTapTimeRef.current = now;
     
     if (isScrollingRef.current) return;
     
     if (showTapHintOverlay) {
-      tapHintOpacity.value = withTiming(0, { duration: 200 });
-      setTimeout(() => setShowTapHintOverlay(false), 200);
+      tapHintOpacity.value = withTiming(0, { duration: 150 });
+      setTimeout(() => setShowTapHintOverlay(false), 150);
     }
     
     const lines = measuredLinesRef.current;
-    const targetLineIndex = findLastVisibleLineIndex();
+    if (lines.length === 0) return;
     
-    if (targetLineIndex >= 0 && targetLineIndex < lines.length - 1) {
-      scrollToLineIndex(targetLineIndex, tapScrollLinePosition, true);
+    const bottomInfo = findBottomLineInfo();
+    
+    if (bottomInfo.lineIndex < 0) return;
+    
+    const isAtEnd = bottomInfo.lineIndex >= lines.length - 1;
+    if (isAtEnd && !bottomInfo.isPartiallyVisible) {
+      return;
     }
-  }, [findLastVisibleLineIndex, scrollToLineIndex, showTapHintOverlay, tapHintOpacity, tapScrollLinePosition]);
+    
+    isScrollingRef.current = true;
+    
+    const animSpeed = Math.max(150, Math.min(tapScrollAnimationSpeed, 400));
+    
+    if (bottomInfo.isPartiallyVisible) {
+      scrollLineIntoFullView(bottomInfo.lineIndex, animSpeed * 0.4, () => {
+        setTimeout(() => {
+          scrollToLineTop(bottomInfo.lineIndex, animSpeed * 0.6, () => {
+            highlightLine(bottomInfo.lineIndex);
+            isScrollingRef.current = false;
+          });
+        }, 16);
+      });
+    } else {
+      scrollToLineTop(bottomInfo.lineIndex, animSpeed, () => {
+        highlightLine(bottomInfo.lineIndex);
+        isScrollingRef.current = false;
+      });
+    }
+  }, [findBottomLineInfo, scrollLineIntoFullView, scrollToLineTop, highlightLine, showTapHintOverlay, tapHintOpacity, tapScrollAnimationSpeed]);
 
   const updateScrollYFromWorklet = useCallback((y: number) => {
     setCurrentScrollY(y);
@@ -601,9 +732,10 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     decelerationRate: "fast" as const,
   };
 
-  const leftZoneWidth = SCREEN_WIDTH * 0.15;
-  const centerZoneWidth = SCREEN_WIDTH * 0.35;
-  const rightZoneWidth = SCREEN_WIDTH * 0.5;
+  const screenWidth = screenDimensions.width;
+  const leftZoneWidth = screenWidth * 0.15;
+  const centerZoneWidth = screenWidth * 0.52;
+  const rightZoneWidth = screenWidth * 0.33;
 
   const centerTapGesture = useMemo(() => {
     return Gesture.Tap()
@@ -799,7 +931,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    width: "85%",
+    width: "33%",
     justifyContent: "center",
     alignItems: "center",
   },
