@@ -185,13 +185,13 @@ export default function LibraryScreen() {
     return null;
   };
 
-  const handleOpenBook = (book: Book) => {
+  const handleOpenBook = useCallback((book: Book) => {
     setCurrentBook(book);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate("Reading", { book });
-  };
+  }, [setCurrentBook, navigation]);
 
-  const handleDeleteBook = (book: Book) => {
+  const handleDeleteBook = useCallback((book: Book) => {
     Alert.alert(
       "Delete Book",
       `Are you sure you want to delete "${book.title}"?`,
@@ -207,7 +207,7 @@ export default function LibraryScreen() {
         },
       ]
     );
-  };
+  }, [removeBook]);
 
   const toggleViewMode = () => {
     setViewMode((prev) => (prev === "grid" ? "list" : "grid"));
@@ -250,7 +250,7 @@ export default function LibraryScreen() {
         theme={theme}
       />
     ),
-    [viewMode, theme]
+    [viewMode, theme, handleOpenBook, handleDeleteBook]
   );
 
   const renderStatsCard = () => (

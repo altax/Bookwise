@@ -55,6 +55,7 @@ export default function ReadingScreen() {
   const { 
     settings, 
     stats,
+    currentBook: contextBook,
     updateBookProgress, 
     addBookmark, 
     addNote, 
@@ -62,6 +63,8 @@ export default function ReadingScreen() {
     startReadingSession,
     endReadingSession,
   } = useReading();
+  
+  const activeBook = contextBook?.id === book.id ? contextBook : book;
   
   const { theme, isDark } = useTheme(settings.themeMode, settings.autoTheme);
   
@@ -97,9 +100,9 @@ export default function ReadingScreen() {
   }, [book.fileUri]);
 
   useEffect(() => {
-    const hasBookmark = book.bookmarks.some((b) => b.page === currentPage);
+    const hasBookmark = activeBook.bookmarks.some((b) => b.page === currentPage);
     setIsBookmarked(hasBookmark);
-  }, [currentPage, book.bookmarks]);
+  }, [currentPage, activeBook.bookmarks]);
 
   const loadBookContent = async () => {
     try {
@@ -151,19 +154,19 @@ export default function ReadingScreen() {
   }, [showUI, settings.animationsEnabled, triggerHaptic]);
 
   const handleClose = () => {
-    updateBookProgress(book.id, currentPage, totalPages);
+    updateBookProgress(activeBook.id, currentPage, totalPages);
     navigation.goBack();
   };
 
   const handleBookmark = async () => {
     if (isBookmarked) {
-      const bookmark = book.bookmarks.find((b) => b.page === currentPage);
+      const bookmark = activeBook.bookmarks.find((b) => b.page === currentPage);
       if (bookmark) {
-        await removeBookmark(book.id, bookmark.id);
+        await removeBookmark(activeBook.id, bookmark.id);
         setIsBookmarked(false);
       }
     } else {
-      await addBookmark(book.id, currentPage, 0);
+      await addBookmark(activeBook.id, currentPage, 0);
       setIsBookmarked(true);
     }
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
@@ -175,7 +178,7 @@ export default function ReadingScreen() {
   };
 
   const handleSaveNote = async (noteContent: string) => {
-    await addNote(book.id, {
+    await addNote(activeBook.id, {
       page: currentPage,
       position: 0,
       selectedText: selectedText,
@@ -224,7 +227,7 @@ export default function ReadingScreen() {
 
   const handleTableOfContents = () => {
     navigation.navigate("TableOfContents", {
-      book,
+      book: activeBook,
       chapters: [
         { title: "Chapter 1", page: 0 },
         { title: "Chapter 2", page: 3 },

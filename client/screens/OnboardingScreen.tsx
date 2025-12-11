@@ -26,6 +26,45 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
+interface PaginationDotProps {
+  index: number;
+  scrollX: { value: number };
+  theme: any;
+}
+
+function PaginationDot({ index, scrollX, theme }: PaginationDotProps) {
+  const dotStyle = useAnimatedStyle(() => {
+    const inputRange = [
+      (index - 1) * SCREEN_WIDTH,
+      index * SCREEN_WIDTH,
+      (index + 1) * SCREEN_WIDTH,
+    ];
+    const width = interpolate(
+      scrollX.value,
+      inputRange,
+      [8, 24, 8],
+      Extrapolation.CLAMP
+    );
+    const opacity = interpolate(
+      scrollX.value,
+      inputRange,
+      [0.4, 1, 0.4],
+      Extrapolation.CLAMP
+    );
+    return { width, opacity };
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.dot,
+        { backgroundColor: theme.accent },
+        dotStyle,
+      ]}
+    />
+  );
+}
+
 interface OnboardingSlide {
   id: string;
   icon: keyof typeof Feather.glyphMap;
@@ -126,39 +165,14 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   const renderPagination = () => (
     <View style={styles.pagination}>
-      {slides.map((_, index) => {
-        const dotStyle = useAnimatedStyle(() => {
-          const inputRange = [
-            (index - 1) * SCREEN_WIDTH,
-            index * SCREEN_WIDTH,
-            (index + 1) * SCREEN_WIDTH,
-          ];
-          const width = interpolate(
-            scrollX.value,
-            inputRange,
-            [8, 24, 8],
-            Extrapolation.CLAMP
-          );
-          const opacity = interpolate(
-            scrollX.value,
-            inputRange,
-            [0.4, 1, 0.4],
-            Extrapolation.CLAMP
-          );
-          return { width, opacity };
-        });
-
-        return (
-          <Animated.View
-            key={index}
-            style={[
-              styles.dot,
-              { backgroundColor: theme.accent },
-              dotStyle,
-            ]}
-          />
-        );
-      })}
+      {slides.map((_, index) => (
+        <PaginationDot
+          key={index}
+          index={index}
+          scrollX={scrollX}
+          theme={theme}
+        />
+      ))}
     </View>
   );
 

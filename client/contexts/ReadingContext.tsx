@@ -156,27 +156,39 @@ export function ReadingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    updateDailyStats();
-  }, []);
+    if (!isLoading) {
+      updateDailyStats();
+    }
+  }, [isLoading]);
 
   const updateDailyStats = useCallback(() => {
     const today = new Date().toDateString();
-    if (stats.lastReadDate !== today) {
+    
+    setStats(prevStats => {
+      if (prevStats.lastReadDate === today) {
+        return prevStats;
+      }
+      
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       
-      if (stats.lastReadDate === yesterday.toDateString()) {
-      } else if (stats.lastReadDate) {
-        setStats(prev => ({ ...prev, currentStreak: 0 }));
+      let newStreak = prevStats.currentStreak;
+      if (prevStats.lastReadDate !== yesterday.toDateString() && prevStats.lastReadDate) {
+        newStreak = 0;
       }
       
-      setStats(prev => ({
-        ...prev,
+      const newStats = {
+        ...prevStats,
+        currentStreak: newStreak,
         todayReadingTime: 0,
-        weeklyReadingTime: [...prev.weeklyReadingTime.slice(1), 0],
-      }));
-    }
-  }, [stats.lastReadDate]);
+        weeklyReadingTime: [...prevStats.weeklyReadingTime.slice(1), 0],
+      };
+      
+      AsyncStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(newStats)).catch(console.error);
+      
+      return newStats;
+    });
+  }, []);
 
   const loadData = async () => {
     try {
