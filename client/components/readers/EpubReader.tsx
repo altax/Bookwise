@@ -86,7 +86,7 @@ function EpubReaderContent({
     if (currentLocation && onLocationChange) {
       onLocationChange(currentLocation);
     }
-  }, [currentLocation, onLocationChange]);
+  }, [currentLocation]);
 
   const handleReady = () => {
     hasLoadedRef.current = true;

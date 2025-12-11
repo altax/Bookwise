@@ -256,10 +256,11 @@ export default function ReadingScreen() {
   const handleScrollProgress = useCallback((progress: number, currentPosition: number, totalHeight: number) => {
     setScrollProgress(progress);
     const estimatedPage = Math.floor(progress * totalPages);
-    if (estimatedPage !== currentPage) {
-      setCurrentPage(Math.min(estimatedPage, totalPages - 1));
-    }
-  }, [totalPages, currentPage]);
+    setCurrentPage(prev => {
+      const newPage = Math.min(estimatedPage, totalPages - 1);
+      return prev !== newPage ? newPage : prev;
+    });
+  }, [totalPages]);
 
   const handleTableOfContents = () => {
     const chapters = parsedBook?.chapters || [
@@ -282,11 +283,9 @@ export default function ReadingScreen() {
   const handleEpubLocationChange = useCallback((location: { start: { percentage: number }; end: { percentage: number } }) => {
     if (location?.start?.percentage !== undefined) {
       const newPage = Math.floor(location.start.percentage * totalPages);
-      if (newPage !== currentPage) {
-        setCurrentPage(newPage);
-      }
+      setCurrentPage(prev => prev !== newPage ? newPage : prev);
     }
-  }, [totalPages, currentPage]);
+  }, [totalPages]);
 
   const handlePdfPageChange = useCallback((page: number, total: number) => {
     setCurrentPage(page - 1);
