@@ -211,6 +211,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   
   const [karaokeCurrentLine, setKaraokeCurrentLine] = useState(0);
   const [nonEmptyLines, setNonEmptyLines] = useState<MeasuredLine[]>([]);
+  const nonEmptyLinesRef = useRef<MeasuredLine[]>([]);
   const karaokeAnimatedLine = useSharedValue(0);
   
   const highlightOpacity = useSharedValue(0);
@@ -316,6 +317,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     
     if (lines.length > 0) {
       measuredLinesRef.current = lines;
+      nonEmptyLinesRef.current = lines;
       setNonEmptyLines(lines);
       setIsReady(true);
     }
@@ -337,6 +339,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       }));
       measuredLinesRef.current = allLines;
       const filtered = allLines.filter(line => line.text.trim().length > 0);
+      nonEmptyLinesRef.current = filtered;
       setNonEmptyLines(filtered);
       setIsReady(true);
     } else if (scrollMode === "karaoke" && !isReady) {
@@ -484,15 +487,15 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [scrollMode, isReady]);
 
   useEffect(() => {
-    if (scrollMode === "karaoke" && !isReady && content && content.length > 0) {
+    if (scrollMode === "karaoke" && content && content.length > 0 && nonEmptyLinesRef.current.length === 0) {
       const fallbackTimer = setTimeout(() => {
-        if (!isReady && nonEmptyLines.length === 0) {
+        if (nonEmptyLinesRef.current.length === 0) {
           generateFallbackLines();
         }
-      }, 500);
+      }, 300);
       return () => clearTimeout(fallbackTimer);
     }
-  }, [scrollMode, isReady, content, nonEmptyLines.length, generateFallbackLines]);
+  }, [scrollMode, content, generateFallbackLines]);
 
   const handleKaraokeAdvance = useCallback(() => {
     if (nonEmptyLines.length === 0) return;
@@ -654,10 +657,10 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           ))}
         </View>
         
-        {nonEmptyLines.length === 0 && !isReady && (
+        {nonEmptyLines.length === 0 && (
           <View style={[styles.karaokeLine, { top: screenCenter - lineHeight / 2 }]}>
             <Text style={[styles.content, textStyle, { textAlign: 'center', opacity: 0.5 }]}>
-              Loading...
+              {!content || content.length === 0 ? 'No content' : 'Loading...'}
             </Text>
           </View>
         )}
