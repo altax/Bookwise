@@ -19,16 +19,16 @@ import Animated, {
   runOnJS,
   useAnimatedReaction,
   Easing,
-  withSpring,
   useAnimatedRef,
   scrollTo,
   cancelAnimation,
-  useDerivedValue,
+  interpolate,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import type { ScrollMode } from "@/constants/theme";
+import { KaraokeDefaults } from "@/constants/theme";
 
 const getScreenDimensions = () => Dimensions.get("window");
 
@@ -53,8 +53,6 @@ interface UnifiedScrollReaderProps {
     textAlignment: "left" | "justify";
     bionicReading: boolean;
     autoScrollSpeed?: number;
-    linearFocusVisibleLines?: number;
-    linearFocusHighlightLine?: boolean;
   };
   initialPosition?: number;
   onAutoScrollStateChange?: (isPlaying: boolean) => void;
@@ -97,8 +95,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const insets = useSafeAreaInsets();
   const animatedScrollViewRef = useAnimatedRef<Animated.ScrollView>();
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isScrollingRef = useRef(false);
-  const lastTapTimeRef = useRef(0);
   const measuredLinesRef = useRef<MeasuredLine[]>([]);
   const autoScrollPosition = useSharedValue(0);
   const isAutoScrollActive = useSharedValue(false);
@@ -115,6 +111,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     });
     return () => subscription?.remove();
   }, []);
+  
   const [highlightedLineY, setHighlightedLineY] = useState<number | null>(null);
   const [highlightedLineHeight, setHighlightedLineHeight] = useState(0);
   const [isReady, setIsReady] = useState(false);
@@ -123,10 +120,8 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const [showStartOverlay, setShowStartOverlay] = useState(false);
   const hasUserStartedReadingRef = useRef(false);
   
-  const [linearFocusCurrentLine, setLinearFocusCurrentLine] = useState(0);
-  const [showLinearFocusOverlay, setShowLinearFocusOverlay] = useState(false);
-  const linearFocusVisibleLines = settings.linearFocusVisibleLines || 1;
-  const linearFocusHighlightLine = settings.linearFocusHighlightLine !== false;
+  const [karaokeCurrentLine, setKaraokeCurrentLine] = useState(0);
+  const karaokeLineOffset = useSharedValue(0);
   
   const highlightOpacity = useSharedValue(0);
   const animatedScrollY = useSharedValue(0);
@@ -200,173 +195,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
   }, []);
 
-  const findMiddleVisibleLineIndex = useCallback((): number => {
-    const lines = measuredLinesRef.current;
-    if (lines.length === 0) return -1;
-    
-    const scrollOffset = currentScrollY;
-    const textAreaTop = paddingTop + textContainerY;
-    const visibleTop = scrollOffset + paddingTop;
-    const visibleBottom = scrollOffset + viewportHeight - paddingBottom;
-    const visibleMiddle = (visibleTop + visibleBottom) / 2;
-    
-    let closestIndex = -1;
-    let closestDistance = Infinity;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.text.trim().length === 0) continue;
-      
-      const lineAbsoluteTop = textAreaTop + line.y;
-      const lineCenter = lineAbsoluteTop + line.height / 2;
-      const distance = Math.abs(lineCenter - visibleMiddle);
-      
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestIndex = i;
-      }
-    }
-    
-    return closestIndex;
-  }, [currentScrollY, viewportHeight, paddingTop, paddingBottom, textContainerY]);
-
-  const findBottomLineInfo = useCallback((): { 
-    lineIndex: number; 
-    isPartiallyVisible: boolean; 
-    visibleRatio: number;
-    line: MeasuredLine | null;
-  } => {
-    const lines = measuredLinesRef.current;
-    if (lines.length === 0) return { lineIndex: -1, isPartiallyVisible: false, visibleRatio: 0, line: null };
-    
-    const scrollOffset = currentScrollY;
-    const textAreaTop = paddingTop + textContainerY;
-    const visibleTop = scrollOffset + paddingTop;
-    const visibleBottom = scrollOffset + viewportHeight - paddingBottom;
-    
-    let lastFullyVisibleIndex = -1;
-    let partiallyVisibleIndex = -1;
-    let partialVisibleRatio = 0;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.text.trim().length === 0) continue;
-      
-      const lineAbsoluteTop = textAreaTop + line.y;
-      const lineAbsoluteBottom = lineAbsoluteTop + line.height;
-      
-      if (lineAbsoluteTop >= visibleTop && lineAbsoluteBottom <= visibleBottom) {
-        lastFullyVisibleIndex = i;
-      }
-      
-      if (lineAbsoluteTop < visibleBottom && lineAbsoluteBottom > visibleBottom) {
-        partiallyVisibleIndex = i;
-        const visiblePart = visibleBottom - lineAbsoluteTop;
-        partialVisibleRatio = visiblePart / line.height;
-      }
-    }
-    
-    if (partiallyVisibleIndex >= 0 && partialVisibleRatio >= 0.1 && partialVisibleRatio < 0.95) {
-      return { 
-        lineIndex: partiallyVisibleIndex, 
-        isPartiallyVisible: true, 
-        visibleRatio: partialVisibleRatio,
-        line: lines[partiallyVisibleIndex]
-      };
-    }
-    
-    if (lastFullyVisibleIndex >= 0) {
-      return { 
-        lineIndex: lastFullyVisibleIndex, 
-        isPartiallyVisible: false, 
-        visibleRatio: 1,
-        line: lines[lastFullyVisibleIndex]
-      };
-    }
-    
-    return { lineIndex: -1, isPartiallyVisible: false, visibleRatio: 0, line: null };
-  }, [currentScrollY, viewportHeight, paddingTop, paddingBottom, textContainerY]);
-
-  const findLastVisibleLineIndex = useCallback((): number => {
-    return findBottomLineInfo().lineIndex;
-  }, [findBottomLineInfo]);
-
-  const scrollToLineTop = useCallback((lineIndex: number, duration: number, onComplete?: () => void) => {
-    const lines = measuredLinesRef.current;
-    if (lineIndex < 0 || lineIndex >= lines.length) {
-      onComplete?.();
-      return;
-    }
-    
-    const line = lines[lineIndex];
-    const textAreaTop = paddingTop + textContainerY;
-    const lineAbsoluteY = textAreaTop + line.y;
-    const targetY = lineAbsoluteY - paddingTop;
-    
-    const maxScroll = Math.max(0, contentHeight - viewportHeight + paddingTop + paddingBottom);
-    const clampedTargetY = Math.max(0, Math.min(targetY, maxScroll));
-    
-    animateScrollTo(clampedTargetY, duration);
-    
-    if (onComplete) {
-      setTimeout(onComplete, duration + 16);
-    }
-  }, [paddingTop, textContainerY, contentHeight, viewportHeight, paddingBottom, animateScrollTo]);
-
-  const scrollLineIntoFullView = useCallback((lineIndex: number, duration: number, onComplete?: () => void) => {
-    const lines = measuredLinesRef.current;
-    if (lineIndex < 0 || lineIndex >= lines.length) {
-      onComplete?.();
-      return;
-    }
-    
-    const line = lines[lineIndex];
-    const textAreaTop = paddingTop + textContainerY;
-    const lineAbsoluteBottom = textAreaTop + line.y + line.height;
-    const visibleBottom = currentScrollY + viewportHeight - paddingBottom;
-    
-    const scrollNeeded = lineAbsoluteBottom - visibleBottom + 4;
-    
-    if (scrollNeeded > 0) {
-      const targetY = currentScrollY + scrollNeeded;
-      const maxScroll = Math.max(0, contentHeight - viewportHeight + paddingTop + paddingBottom);
-      const clampedTargetY = Math.max(0, Math.min(targetY, maxScroll));
-      
-      animateScrollTo(clampedTargetY, duration);
-      
-      if (onComplete) {
-        setTimeout(onComplete, duration + 16);
-      }
-    } else {
-      onComplete?.();
-    }
-  }, [paddingTop, textContainerY, currentScrollY, viewportHeight, paddingBottom, contentHeight, animateScrollTo]);
-
-  const highlightLine = useCallback((lineIndex: number) => {
-    const lines = measuredLinesRef.current;
-    if (lineIndex < 0 || lineIndex >= lines.length) return;
-    
-    const line = lines[lineIndex];
-    
-    if (highlightTimeoutRef.current) {
-      clearTimeout(highlightTimeoutRef.current);
-      highlightTimeoutRef.current = null;
-    }
-    
-    setHighlightedLineY(line.y);
-    setHighlightedLineHeight(line.height);
-    
-    highlightOpacity.value = withSequence(
-      withTiming(1, { duration: 50 }),
-      withTiming(0, { duration: 500, easing: Easing.out(Easing.quad) })
-    );
-    
-    highlightTimeoutRef.current = setTimeout(() => {
-      setHighlightedLineY(null);
-      highlightTimeoutRef.current = null;
-    }, 600);
-  }, [highlightOpacity]);
-
   const updateScrollYFromWorklet = useCallback((y: number) => {
     setCurrentScrollY(y);
     if (contentHeight > 0) {
@@ -419,7 +247,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     
     setIsAutoScrollPlaying(true);
     onAutoScrollStateChange?.(true);
-  }, [autoScrollSpeed, currentScrollY, contentHeight, viewportHeight, paddingTop, paddingBottom, onAutoScrollStateChange, autoScrollPosition, autoScrollMaxY, isAutoScrollActive, animatedScrollViewRef]);
+  }, [autoScrollSpeed, currentScrollY, contentHeight, viewportHeight, paddingTop, paddingBottom, onAutoScrollStateChange, autoScrollPosition, autoScrollMaxY, isAutoScrollActive]);
 
   const stopAutoScroll = useCallback(() => {
     cancelAnimation(autoScrollPosition);
@@ -435,9 +263,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       startAutoScroll();
     }
   }, [isAutoScrollPlaying, startAutoScroll, stopAutoScroll]);
-
-  const handleCenterTap = useCallback(() => {
-  }, []);
 
   const handleLeftTap = useCallback(() => {
     if (scrollMode === "autoScroll" && isAutoScrollPlaying) {
@@ -500,69 +325,56 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [scrollMode, isReady, contentHeight]);
 
   useEffect(() => {
-    if (scrollMode === "linearFocus" && isReady && contentHeight > 0) {
-      setShowLinearFocusOverlay(true);
-      setLinearFocusCurrentLine(0);
-      const lines = measuredLinesRef.current;
-      if (lines.length > 0) {
-        scrollTo(animatedScrollViewRef, 0, 0, true);
-      }
-    } else if (scrollMode !== "linearFocus") {
-      setShowLinearFocusOverlay(false);
+    if (scrollMode === "karaoke" && isReady && contentHeight > 0) {
+      setKaraokeCurrentLine(0);
+      karaokeLineOffset.value = 0;
     }
   }, [scrollMode, isReady, contentHeight]);
 
-  const handleLinearFocusAdvance = useCallback(() => {
+  const handleKaraokeAdvance = useCallback(() => {
     const lines = measuredLinesRef.current;
-    if (lines.length === 0) return;
-
     const nonEmptyLines = lines.filter(line => line.text.trim().length > 0);
-    const currentNonEmptyIndex = nonEmptyLines.findIndex((_, idx) => {
-      let count = 0;
-      for (let i = 0; i <= idx; i++) {
-        const originalIndex = lines.findIndex(l => l === nonEmptyLines[i]);
-        if (originalIndex <= linearFocusCurrentLine) count++;
-      }
-      return count > linearFocusCurrentLine;
-    });
-
-    const nextLineIndex = linearFocusCurrentLine + linearFocusVisibleLines;
     
-    if (nextLineIndex >= lines.length) {
+    if (nonEmptyLines.length === 0) return;
+    
+    if (karaokeCurrentLine >= nonEmptyLines.length - 1) {
       return;
     }
 
-    setLinearFocusCurrentLine(nextLineIndex);
-
-    const targetLine = lines[nextLineIndex];
-    if (targetLine) {
-      const textAreaTop = paddingTop + textContainerY;
-      const lineAbsoluteY = textAreaTop + targetLine.y;
-      const targetScrollY = Math.max(0, lineAbsoluteY - paddingTop - 20);
-      const maxScroll = Math.max(0, contentHeight - viewportHeight + paddingTop + paddingBottom);
-      const clampedY = Math.min(targetScrollY, maxScroll);
-      
-      animateScrollTo(clampedY, 300);
-    }
-  }, [linearFocusCurrentLine, linearFocusVisibleLines, paddingTop, textContainerY, contentHeight, viewportHeight, paddingBottom, animateScrollTo]);
-
-  const handleLinearFocusBack = useCallback(() => {
-    if (linearFocusCurrentLine <= 0) return;
+    const nextLine = karaokeCurrentLine + 1;
+    setKaraokeCurrentLine(nextLine);
     
+    karaokeLineOffset.value = withTiming(nextLine, {
+      duration: KaraokeDefaults.animationDuration,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+    });
+
+    const totalLines = nonEmptyLines.length;
+    if (totalLines > 0) {
+      const progress = nextLine / (totalLines - 1);
+      onScrollProgress?.(Math.min(1, progress), nextLine, totalLines);
+    }
+  }, [karaokeCurrentLine, karaokeLineOffset, onScrollProgress]);
+
+  const handleKaraokeBack = useCallback(() => {
+    if (karaokeCurrentLine <= 0) return;
+    
+    const prevLine = karaokeCurrentLine - 1;
+    setKaraokeCurrentLine(prevLine);
+    
+    karaokeLineOffset.value = withTiming(prevLine, {
+      duration: KaraokeDefaults.animationDuration,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+    });
+
     const lines = measuredLinesRef.current;
-    const prevLineIndex = Math.max(0, linearFocusCurrentLine - linearFocusVisibleLines);
-    
-    setLinearFocusCurrentLine(prevLineIndex);
-
-    const targetLine = lines[prevLineIndex];
-    if (targetLine) {
-      const textAreaTop = paddingTop + textContainerY;
-      const lineAbsoluteY = textAreaTop + targetLine.y;
-      const targetScrollY = Math.max(0, lineAbsoluteY - paddingTop - 20);
-      
-      animateScrollTo(targetScrollY, 300);
+    const nonEmptyLines = lines.filter(line => line.text.trim().length > 0);
+    const totalLines = nonEmptyLines.length;
+    if (totalLines > 0) {
+      const progress = prevLine / (totalLines - 1);
+      onScrollProgress?.(Math.min(1, progress), prevLine, totalLines);
     }
-  }, [linearFocusCurrentLine, linearFocusVisibleLines, paddingTop, textContainerY, animateScrollTo]);
+  }, [karaokeCurrentLine, karaokeLineOffset, onScrollProgress]);
 
   const handleStartReading = useCallback(() => {
     hasUserStartedReadingRef.current = true;
@@ -590,9 +402,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       cancelAnimation(autoScrollPosition);
       if (scrollAnimationTimeoutRef.current) {
         clearTimeout(scrollAnimationTimeoutRef.current);
-      }
-      if (tapHintTimeoutRef.current) {
-        clearTimeout(tapHintTimeoutRef.current);
       }
     };
   }, [autoScrollPosition]);
@@ -648,7 +457,104 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
 
   const highlightColor = theme.highlightColor || 'rgba(255, 215, 0, 0.45)';
 
+  const isKaraoke = scrollMode === "karaoke";
+
+  const renderKaraokeContent = () => {
+    const lines = measuredLinesRef.current;
+    const nonEmptyLines = lines.filter(line => line.text.trim().length > 0);
+    
+    if (nonEmptyLines.length === 0 || !isReady) {
+      return (
+        <View>
+          <Text 
+            style={[styles.content, textStyle, { position: 'absolute', opacity: 0 }]} 
+            onTextLayout={handleTextLayout}
+          >
+            {content}
+          </Text>
+          <Text style={[styles.content, textStyle, { opacity: 0.3 }]}>
+            {content}
+          </Text>
+        </View>
+      );
+    }
+
+    const screenCenter = viewportHeight / 2;
+    const currentLineHeight = lineHeight;
+
+    return (
+      <View style={styles.karaokeContainer}>
+        <Text 
+          style={[styles.content, textStyle, { position: 'absolute', opacity: 0 }]} 
+          onTextLayout={handleTextLayout}
+        >
+          {content}
+        </Text>
+        
+        {nonEmptyLines.map((line, index) => {
+          const distanceFromCurrent = index - karaokeCurrentLine;
+          
+          let opacity = 1;
+          let scale = 1;
+          let fontWeight: "400" | "700" = "400";
+          
+          if (distanceFromCurrent === 0) {
+            opacity = 1;
+            scale = 1;
+            fontWeight = "700";
+          } else if (distanceFromCurrent < 0) {
+            const fadeDistance = Math.abs(distanceFromCurrent);
+            opacity = Math.max(KaraokeDefaults.readOpacity, 0.4 - fadeDistance * 0.08);
+            scale = 0.92;
+          } else {
+            const fadeDistance = distanceFromCurrent;
+            opacity = Math.max(KaraokeDefaults.upcomingOpacity, 0.5 - fadeDistance * 0.06);
+            scale = 0.95;
+          }
+
+          const yOffset = (index - karaokeCurrentLine) * currentLineHeight;
+          const translateY = screenCenter - currentLineHeight / 2 + yOffset - paddingTop;
+
+          return (
+            <Animated.View
+              key={index}
+              style={[
+                styles.karaokeLine,
+                {
+                  transform: [
+                    { translateY },
+                    { scale },
+                  ],
+                  opacity,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.content,
+                  textStyle,
+                  {
+                    fontWeight,
+                    textAlign: 'center',
+                  },
+                ]}
+              >
+                {settings.bionicReading 
+                  ? line.text.split(/(\s+)/).map((part, i) => renderBionicWord(part, i))
+                  : line.text}
+              </Text>
+            </Animated.View>
+          );
+        })}
+      </View>
+    );
+  };
+
   const renderContent = () => {
+    if (isKaraoke) {
+      return renderKaraokeContent();
+    }
+    
     return (
       <View>
         <Text 
@@ -674,7 +580,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     scrollEnabled: !isAutoScrollPlaying,
     showsVerticalScrollIndicator: false,
     decelerationRate: "normal" as const,
-  } : scrollMode === "linearFocus" ? {
+  } : scrollMode === "karaoke" ? {
     scrollEnabled: false,
     showsVerticalScrollIndicator: false,
     decelerationRate: "normal" as const,
@@ -701,115 +607,54 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [handleLeftTap, leftZoneWidth]);
 
   const isSeamless = scrollMode === "seamless";
-  const isLinearFocus = scrollMode === "linearFocus";
 
-  const renderLinearFocusOverlay = () => {
-    if (!isLinearFocus || !showLinearFocusOverlay) return null;
-    
-    const lines = measuredLinesRef.current;
-    if (lines.length === 0) return null;
-
-    const visibleLineIndices: number[] = [];
-    for (let i = 0; i < linearFocusVisibleLines && linearFocusCurrentLine + i < lines.length; i++) {
-      visibleLineIndices.push(linearFocusCurrentLine + i);
-    }
-
-    const firstVisibleLine = lines[visibleLineIndices[0]];
-    const lastVisibleLine = lines[visibleLineIndices[visibleLineIndices.length - 1]];
-    
-    if (!firstVisibleLine || !lastVisibleLine) return null;
-
-    const visibleTop = firstVisibleLine.y;
-    const visibleBottom = lastVisibleLine.y + lastVisibleLine.height;
-    const visibleHeight = visibleBottom - visibleTop;
-
-    return (
-      <>
-        {visibleTop > 0 && (
-          <View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: visibleTop,
-              backgroundColor: theme.backgroundRoot,
-              opacity: 0.85,
-              zIndex: 5,
-            }}
-            pointerEvents="none"
-          />
-        )}
-        <View
-          style={{
-            position: 'absolute',
-            top: visibleBottom,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: theme.backgroundRoot,
-            opacity: 0.85,
-            zIndex: 5,
-          }}
-          pointerEvents="none"
-        />
-        {linearFocusHighlightLine && (
-          <View
-            style={{
-              position: 'absolute',
-              top: visibleTop - 4,
-              left: -8,
-              right: -8,
-              height: visibleHeight + 8,
-              backgroundColor: theme.highlightColor || 'rgba(99, 102, 241, 0.12)',
-              borderRadius: 8,
-              zIndex: 4,
-            }}
-            pointerEvents="none"
-          />
-        )}
-      </>
-    );
-  };
+  const nonEmptyLinesCount = useMemo(() => {
+    return measuredLinesRef.current.filter(line => line.text.trim().length > 0).length;
+  }, [isReady]);
 
   const containerContent = (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]} onLayout={handleViewportLayout}>
-      <Animated.ScrollView
-        ref={animatedScrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={[
-          styles.contentContainer,
-          {
-            paddingHorizontal: settings.marginHorizontal,
-            paddingTop: paddingTop,
-            paddingBottom: paddingBottom,
-          },
-        ]}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-        {...scrollViewProps}
-      >
-        <View style={styles.textWrapper}>
-          <View onLayout={handleContentLayout} pointerEvents="none">
-            {renderContent()}
-            
-            {highlightedLineY !== null && (
-              <Animated.View
-                style={[
-                  styles.lineHighlight,
-                  {
-                    top: highlightedLineY - 2,
-                    height: highlightedLineHeight + 4,
-                    backgroundColor: highlightColor,
-                  },
-                  highlightAnimatedStyle,
-                ]}
-              />
-            )}
-            {renderLinearFocusOverlay()}
-          </View>
+      {isKaraoke ? (
+        <View style={styles.karaokeWrapper}>
+          {renderKaraokeContent()}
         </View>
-      </Animated.ScrollView>
+      ) : (
+        <Animated.ScrollView
+          ref={animatedScrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.contentContainer,
+            {
+              paddingHorizontal: settings.marginHorizontal,
+              paddingTop: paddingTop,
+              paddingBottom: paddingBottom,
+            },
+          ]}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          {...scrollViewProps}
+        >
+          <View style={styles.textWrapper}>
+            <View onLayout={handleContentLayout} pointerEvents="none">
+              {renderContent()}
+              
+              {highlightedLineY !== null && (
+                <Animated.View
+                  style={[
+                    styles.lineHighlight,
+                    {
+                      top: highlightedLineY - 2,
+                      height: highlightedLineHeight + 4,
+                      backgroundColor: highlightColor,
+                    },
+                    highlightAnimatedStyle,
+                  ]}
+                />
+              )}
+            </View>
+          </View>
+        </Animated.ScrollView>
+      )}
 
       {scrollMode === "autoScroll" && (
         <View style={styles.tapZonesContainer} pointerEvents="box-none">
@@ -822,26 +667,25 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
         </View>
       )}
 
-      {isLinearFocus && (
+      {isKaraoke && (
         <View style={styles.tapZonesContainer} pointerEvents="box-none">
           <Pressable 
             style={[styles.tapZone, { width: screenWidth * 0.25 }]} 
-            onPress={handleLinearFocusBack}
+            onPress={handleKaraokeBack}
           />
-          <View style={[styles.tapZone, { width: screenWidth * 0.15 }]} />
           <Pressable 
-            style={[styles.tapZone, { width: screenWidth * 0.60 }]} 
-            onPress={handleLinearFocusAdvance}
+            style={[styles.tapZone, { width: screenWidth * 0.75 }]} 
+            onPress={handleKaraokeAdvance}
           />
         </View>
       )}
 
-      {isLinearFocus && (
-        <View style={styles.linearFocusIndicator}>
-          <View style={[styles.linearFocusBadge, { backgroundColor: theme.backgroundRoot + 'E6' }]}>
-            <Feather name="eye" size={12} color={theme.text} />
-            <Text style={[styles.linearFocusText, { color: theme.text }]}>
-              Line {linearFocusCurrentLine + 1}/{measuredLinesRef.current.length || '?'}
+      {isKaraoke && (
+        <View style={styles.karaokeIndicator}>
+          <View style={[styles.karaokeBadge, { backgroundColor: theme.backgroundRoot + 'E6' }]}>
+            <Feather name="mic" size={12} color={theme.text} />
+            <Text style={[styles.karaokeText, { color: theme.text }]}>
+              {karaokeCurrentLine + 1}/{nonEmptyLinesCount || '?'}
             </Text>
           </View>
         </View>
@@ -1013,13 +857,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "500",
   },
-  linearFocusIndicator: {
+  karaokeContainer: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  karaokeWrapper: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  karaokeLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+  },
+  karaokeIndicator: {
     position: "absolute",
     top: 8,
     right: 8,
     zIndex: 50,
   },
-  linearFocusBadge: {
+  karaokeBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
@@ -1027,7 +886,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 12,
   },
-  linearFocusText: {
+  karaokeText: {
     fontSize: 11,
     fontWeight: "500",
   },

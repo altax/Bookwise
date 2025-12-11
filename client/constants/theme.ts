@@ -355,9 +355,9 @@ export const ScrollModes = {
     name: "Auto Scroll",
     description: "Automatic scrolling at set speed",
   },
-  linearFocus: {
-    name: "Linear Focus",
-    description: "Line-by-line guided reading for ADHD",
+  karaoke: {
+    name: "Karaoke",
+    description: "Line-by-line focus, tap to advance",
   },
 };
 
@@ -369,12 +369,10 @@ export const AutoScrollDefaults = {
   defaultSpeed: 50,
 };
 
-export const LinearFocusDefaults = {
-  minVisibleLines: 1,
-  maxVisibleLines: 5,
-  defaultVisibleLines: 1,
-  highlightCurrentLine: true,
-  dimOpacity: 0.15,
+export const KaraokeDefaults = {
+  upcomingOpacity: 0.35,
+  readOpacity: 0.2,
+  animationDuration: 300,
 };
 
 export const Shadows = {
