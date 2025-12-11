@@ -6,6 +6,9 @@ import {
   Dimensions,
   Platform,
   ActivityIndicator,
+  ScrollView,
+  Switch,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -13,6 +16,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as FileSystem from "expo-file-system/legacy";
+import Slider from "@react-native-community/slider";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -21,7 +25,7 @@ import Animated, {
   Extrapolation,
 } from "react-native-reanimated";
 
-import { Spacing, Fonts, Motion, ReadingDefaults } from "@/constants/theme";
+import { Spacing, Fonts, Motion, ReadingDefaults, ScrollModes, ScrollMode, TapScrollLinePosition, TapScrollLinePositionType, AutoScrollDefaults, TapScrollDefaults, ThemeMode, Colors } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { useReading, Book } from "@/contexts/ReadingContext";
 import { useTheme } from "@/hooks/useTheme";
@@ -38,7 +42,16 @@ import { BookParserService, ParsedBook } from "@/services/BookParserService";
 type ReadingRouteProp = RouteProp<RootStackParamList, "Reading">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+const themeOptions: { mode: ThemeMode; label: string; bgColor: string }[] = [
+  { mode: "light", label: "Day", bgColor: "#FAFAFA" },
+  { mode: "dark", label: "Night", bgColor: "#0A0A0F" },
+  { mode: "sepia", label: "Paper", bgColor: "#F8F4EC" },
+  { mode: "dusk", label: "Dusk", bgColor: "#1A1625" },
+  { mode: "midnight", label: "AMOLED", bgColor: "#000000" },
+  { mode: "forest", label: "Forest", bgColor: "#0F1A14" },
+];
 
 export default function ReadingScreen() {
   const insets = useSafeAreaInsets();
@@ -56,6 +69,7 @@ export default function ReadingScreen() {
     removeBookmark, 
     startReadingSession,
     endReadingSession,
+    updateSettings,
   } = useReading();
   
   const activeBook = contextBook?.id === book.id ? contextBook : book;
@@ -71,6 +85,7 @@ export default function ReadingScreen() {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [selectedText, setSelectedText] = useState("");
   const [wordCount, setWordCount] = useState(0);
   const [estimatedReadingTime, setEstimatedReadingTime] = useState(0);
@@ -82,6 +97,7 @@ export default function ReadingScreen() {
   const [scrollProgress, setScrollProgress] = useState(0);
 
   const uiOpacity = useSharedValue(0);
+  const settingsPanelTranslate = useSharedValue(SCREEN_HEIGHT);
 
   useEffect(() => {
     loadBookContent();
@@ -178,6 +194,18 @@ export default function ReadingScreen() {
     triggerHaptic();
   }, [showUI, settings.animationsEnabled, triggerHaptic]);
 
+  const openSettingsPanel = useCallback(() => {
+    setShowSettingsPanel(true);
+    settingsPanelTranslate.value = withTiming(0, { duration: 300 });
+    triggerHaptic();
+  }, [settingsPanelTranslate, triggerHaptic]);
+
+  const closeSettingsPanel = useCallback(() => {
+    settingsPanelTranslate.value = withTiming(SCREEN_HEIGHT, { duration: 250 });
+    setTimeout(() => setShowSettingsPanel(false), 250);
+    triggerHaptic();
+  }, [settingsPanelTranslate, triggerHaptic]);
+
   const handleClose = () => {
     updateBookProgress(activeBook.id, currentPage, totalPages);
     navigation.goBack();
@@ -252,6 +280,16 @@ export default function ReadingScreen() {
     setTotalPages(total);
   }, []);
 
+  const handleThemeChange = useCallback((mode: ThemeMode) => {
+    triggerHaptic();
+    updateSettings({ themeMode: mode, autoTheme: false });
+  }, [updateSettings, triggerHaptic]);
+
+  const handleScrollModeChange = useCallback((mode: ScrollMode) => {
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    updateSettings({ scrollMode: mode });
+  }, [updateSettings, triggerHaptic]);
+
   const progress = scrollProgress * 100;
   const remainingTime = Math.ceil((1 - scrollProgress) * estimatedReadingTime);
 
@@ -283,6 +321,10 @@ export default function ReadingScreen() {
       },
     ],
     pointerEvents: uiOpacity.value > 0.5 ? "auto" : "none",
+  }));
+
+  const settingsPanelStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: settingsPanelTranslate.value }],
   }));
 
   const getFontFamily = () => {
@@ -348,6 +390,7 @@ export default function ReadingScreen() {
         scrollMode={settings.scrollMode}
         onScrollProgress={handleScrollProgress}
         onTap={toggleUI}
+        onCenterTap={openSettingsPanel}
         onError={(err) => console.error("Reader error:", err)}
         theme={{ 
           text: theme.text, 
@@ -366,16 +409,243 @@ export default function ReadingScreen() {
           autoScrollSpeed: settings.autoScrollSpeed,
           tapScrollAnimationSpeed: settings.tapScrollAnimationSpeed,
           tapScrollLinePosition: settings.tapScrollLinePosition,
+          readerPaddingTop: settings.readerPaddingTop,
+          readerPaddingBottom: settings.readerPaddingBottom,
         }}
       />
     );
   };
 
+  const renderSettingsPanel = () => (
+    <Modal
+      visible={showSettingsPanel}
+      transparent
+      animationType="none"
+      onRequestClose={closeSettingsPanel}
+    >
+      <Pressable style={styles.settingsOverlay} onPress={closeSettingsPanel}>
+        <Animated.View style={[styles.settingsPanel, { backgroundColor: theme.backgroundDefault }, settingsPanelStyle]}>
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <View style={styles.settingsHandle}>
+              <View style={[styles.settingsHandleBar, { backgroundColor: theme.border }]} />
+            </View>
+            
+            <ScrollView 
+              style={styles.settingsScroll} 
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+            >
+              <View style={styles.settingsSection}>
+                <ThemedText style={[styles.settingsSectionTitle, { color: theme.text }]}>
+                  Theme
+                </ThemedText>
+                <View style={styles.themeOptions}>
+                  {themeOptions.map((opt) => (
+                    <Pressable
+                      key={opt.mode}
+                      style={[
+                        styles.themeOption,
+                        { 
+                          backgroundColor: opt.bgColor,
+                          borderColor: settings.themeMode === opt.mode ? theme.accent : theme.border,
+                          borderWidth: settings.themeMode === opt.mode ? 2 : 1,
+                        },
+                      ]}
+                      onPress={() => handleThemeChange(opt.mode)}
+                    >
+                      <ThemedText style={[styles.themeOptionLabel, { color: settings.themeMode === opt.mode ? theme.accent : theme.secondaryText }]}>
+                        {opt.label}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.settingsSection}>
+                <ThemedText style={[styles.settingsSectionTitle, { color: theme.text }]}>
+                  Scroll Mode
+                </ThemedText>
+                <View style={styles.scrollModeOptions}>
+                  {(Object.keys(ScrollModes) as ScrollMode[]).map((mode) => {
+                    const modeData = ScrollModes[mode];
+                    const isSelected = settings.scrollMode === mode;
+                    const iconName = mode === "seamless" ? "arrow-down" : mode === "tapScroll" ? "mouse-pointer" : "play";
+                    return (
+                      <Pressable
+                        key={mode}
+                        style={[
+                          styles.scrollModeOption,
+                          {
+                            backgroundColor: isSelected ? theme.accent : theme.backgroundSecondary,
+                          },
+                        ]}
+                        onPress={() => handleScrollModeChange(mode)}
+                      >
+                        <Feather name={iconName} size={16} color={isSelected ? "#FFFFFF" : theme.text} />
+                        <ThemedText style={[styles.scrollModeLabel, { color: isSelected ? "#FFFFFF" : theme.text }]}>
+                          {modeData.name}
+                        </ThemedText>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {settings.scrollMode === "autoScroll" && (
+                <View style={styles.settingsSection}>
+                  <View style={styles.sliderHeader}>
+                    <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Auto-Scroll Speed</ThemedText>
+                    <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.autoScrollSpeed} px/s</ThemedText>
+                  </View>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={AutoScrollDefaults.minSpeed}
+                    maximumValue={AutoScrollDefaults.maxSpeed}
+                    step={5}
+                    value={settings.autoScrollSpeed}
+                    onValueChange={(value) => updateSettings({ autoScrollSpeed: value })}
+                    minimumTrackTintColor={theme.accent}
+                    maximumTrackTintColor={theme.backgroundTertiary}
+                    thumbTintColor={theme.accent}
+                  />
+                </View>
+              )}
+
+              {settings.scrollMode === "tapScroll" && (
+                <>
+                  <View style={styles.settingsSection}>
+                    <View style={styles.sliderHeader}>
+                      <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Animation Speed</ThemedText>
+                      <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.tapScrollAnimationSpeed} ms</ThemedText>
+                    </View>
+                    <Slider
+                      style={styles.slider}
+                      minimumValue={TapScrollDefaults.minAnimationSpeed}
+                      maximumValue={TapScrollDefaults.maxAnimationSpeed}
+                      step={50}
+                      value={settings.tapScrollAnimationSpeed}
+                      onValueChange={(value) => updateSettings({ tapScrollAnimationSpeed: value })}
+                      minimumTrackTintColor={theme.accent}
+                      maximumTrackTintColor={theme.backgroundTertiary}
+                      thumbTintColor={theme.accent}
+                    />
+                  </View>
+                </>
+              )}
+
+              <View style={styles.settingsSection}>
+                <View style={styles.sliderHeader}>
+                  <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Font Size</ThemedText>
+                  <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{Math.round(settings.fontSize)} pt</ThemedText>
+                </View>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={ReadingDefaults.minFontSize}
+                  maximumValue={ReadingDefaults.maxFontSize}
+                  value={settings.fontSize}
+                  onValueChange={(value) => updateSettings({ fontSize: value })}
+                  minimumTrackTintColor={theme.accent}
+                  maximumTrackTintColor={theme.backgroundTertiary}
+                  thumbTintColor={theme.accent}
+                />
+              </View>
+
+              <View style={styles.settingsSection}>
+                <View style={styles.sliderHeader}>
+                  <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Line Spacing</ThemedText>
+                  <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.lineSpacing.toFixed(1)}</ThemedText>
+                </View>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={ReadingDefaults.minLineSpacing}
+                  maximumValue={ReadingDefaults.maxLineSpacing}
+                  step={0.1}
+                  value={settings.lineSpacing}
+                  onValueChange={(value) => updateSettings({ lineSpacing: value })}
+                  minimumTrackTintColor={theme.accent}
+                  maximumTrackTintColor={theme.backgroundTertiary}
+                  thumbTintColor={theme.accent}
+                />
+              </View>
+
+              <View style={styles.settingsSection}>
+                <View style={styles.sliderHeader}>
+                  <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Top Padding</ThemedText>
+                  <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.readerPaddingTop} px</ThemedText>
+                </View>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={ReadingDefaults.minPadding}
+                  maximumValue={ReadingDefaults.maxPadding}
+                  step={5}
+                  value={settings.readerPaddingTop}
+                  onValueChange={(value) => updateSettings({ readerPaddingTop: value })}
+                  minimumTrackTintColor={theme.accent}
+                  maximumTrackTintColor={theme.backgroundTertiary}
+                  thumbTintColor={theme.accent}
+                />
+              </View>
+
+              <View style={styles.settingsSection}>
+                <View style={styles.sliderHeader}>
+                  <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Bottom Padding</ThemedText>
+                  <ThemedText style={[styles.sliderValue, { color: theme.secondaryText }]}>{settings.readerPaddingBottom} px</ThemedText>
+                </View>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={ReadingDefaults.minPadding}
+                  maximumValue={ReadingDefaults.maxPadding}
+                  step={5}
+                  value={settings.readerPaddingBottom}
+                  onValueChange={(value) => updateSettings({ readerPaddingBottom: value })}
+                  minimumTrackTintColor={theme.accent}
+                  maximumTrackTintColor={theme.backgroundTertiary}
+                  thumbTintColor={theme.accent}
+                />
+              </View>
+
+              <View style={styles.settingsSection}>
+                <View style={styles.toggleRow}>
+                  <View>
+                    <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Bionic Reading</ThemedText>
+                    <ThemedText style={[styles.settingsHint, { color: theme.secondaryText }]}>Bold first half of words</ThemedText>
+                  </View>
+                  <Switch
+                    value={settings.bionicReading}
+                    onValueChange={(value) => updateSettings({ bionicReading: value })}
+                    trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.settingsSection}>
+                <View style={styles.toggleRow}>
+                  <View>
+                    <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Focus Mode</ThemedText>
+                    <ThemedText style={[styles.settingsHint, { color: theme.secondaryText }]}>Minimal UI, hides reading time</ThemedText>
+                  </View>
+                  <Switch
+                    value={settings.focusMode}
+                    onValueChange={(value) => updateSettings({ focusMode: value })}
+                    trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Animated.View>
+      </Pressable>
+    </Modal>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
       <ReadingTimer 
-        visible={settings.focusMode} 
+        visible={settings.showReadingTime || settings.focusMode} 
         focusMode={settings.focusMode}
+        showTimer={settings.showReadingTime && !settings.focusMode}
         onBreakSuggested={handleBreakSuggested}
       />
 
@@ -488,18 +758,20 @@ export default function ReadingScreen() {
               </View>
               <View style={styles.footerDivider} />
               <Pressable 
-                onPress={() => {}} 
+                onPress={openSettingsPanel} 
                 style={styles.footerButton}
               >
-                <Feather name="type" size={20} color={theme.text} />
+                <Feather name="sliders" size={20} color={theme.text} />
                 <ThemedText style={[styles.footerButtonText, { color: theme.text }]}>
-                  Aa
+                  Settings
                 </ThemedText>
               </Pressable>
             </View>
           </GlassCard>
         </Animated.View>
       )}
+
+      {renderSettingsPanel()}
 
       <NoteModal
         visible={showNoteModal}
@@ -655,5 +927,95 @@ const styles = StyleSheet.create({
   },
   pageInfoDivider: {
     fontSize: 14,
+  },
+  settingsOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "flex-end",
+  },
+  settingsPanel: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: SCREEN_HEIGHT * 0.75,
+  },
+  settingsHandle: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  settingsHandleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
+  settingsScroll: {
+    paddingHorizontal: 20,
+  },
+  settingsSection: {
+    marginBottom: 24,
+  },
+  settingsSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  themeOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  themeOption: {
+    width: (SCREEN_WIDTH - 60) / 3 - 7,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  themeOptionLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  scrollModeOptions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  scrollModeOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  scrollModeLabel: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  sliderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  settingsLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  settingsHint: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  sliderValue: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  slider: {
+    width: "100%",
+    height: 40,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
 });

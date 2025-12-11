@@ -278,6 +278,10 @@ export const ReadingDefaults = {
   optimalLineLength: 66,
   minLineLength: 50,
   maxLineLength: 75,
+  paddingTop: 40,
+  paddingBottom: 60,
+  minPadding: 20,
+  maxPadding: 120,
 };
 
 export const Fonts = Platform.select({

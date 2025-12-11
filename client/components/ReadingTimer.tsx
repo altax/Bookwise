@@ -20,12 +20,14 @@ interface ReadingTimerProps {
   onBreakSuggested?: () => void;
   visible: boolean;
   focusMode?: boolean;
+  showTimer?: boolean;
 }
 
 export function ReadingTimer({
   onBreakSuggested,
   visible,
   focusMode = false,
+  showTimer = true,
 }: ReadingTimerProps) {
   const { theme } = useTheme();
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -128,8 +130,8 @@ export function ReadingTimer({
 
   return (
     <Animated.View style={[styles.container, animatedContainerStyle]}>
-      {focusMode && (
-        <Animated.View style={[styles.timerBadge, animatedPulseStyle]}>
+      {showTimer && (
+        <Animated.View style={[styles.timerBadge, animatedPulseStyle, { backgroundColor: focusMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]}>
           <Pressable onPress={togglePause} style={styles.timerContent}>
             <Feather
               name={isPaused ? "play" : "clock"}
