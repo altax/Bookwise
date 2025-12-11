@@ -263,7 +263,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     
     const scrollOffset = currentScrollY;
     const textAreaTop = paddingTop + textContainerY;
-    const visibleTop = scrollOffset;
+    const visibleTop = scrollOffset + paddingTop;
     const visibleBottom = scrollOffset + viewportHeight - paddingBottom;
     
     let lastFullyVisibleIndex = -1;
@@ -405,7 +405,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       targetY = lineAbsoluteY - paddingTop;
     }
     
-    const maxScroll = contentHeight - viewportHeight + paddingTop + paddingBottom;
+    const maxScroll = Math.max(0, contentHeight - viewportHeight + paddingTop + paddingBottom);
     const clampedTargetY = Math.max(0, Math.min(targetY, maxScroll));
     
     isScrollingRef.current = true;
@@ -902,7 +902,7 @@ const styles = StyleSheet.create({
     left: -4,
     right: -4,
     borderRadius: 4,
-    zIndex: -1,
+    zIndex: 1,
   },
   tapZonesContainer: {
     ...StyleSheet.absoluteFillObject,
