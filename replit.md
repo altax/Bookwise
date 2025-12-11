@@ -127,6 +127,11 @@ server/
 - December 2024: Enhanced typography with letter spacing
 - December 2024: Reading mode presets
 - December 2024: Fixed EPUB loading bugs - added 30-second timeout, file existence checks, retry mechanism with re-armed timeout protection
+- December 2024: **NEW Scroll Modes** - Implemented two scroll modes:
+  - **Seamless Scroll**: Continuous smooth scrolling for immersive reading
+  - **Tap-Scroll**: Tap anywhere to scroll the last visible line to the top with brief highlighting to prevent losing your reading position
+- December 2024: Created UnifiedScrollReader component with accurate line detection using React Native's onTextLayout callback
+- December 2024: Simplified EPUB loading flow (load -> open -> read)
 
 ## User Preferences
 - No authentication required (local-first app)
