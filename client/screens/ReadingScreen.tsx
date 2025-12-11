@@ -110,6 +110,13 @@ export default function ReadingScreen() {
     try {
       setIsLoading(true);
 
+      const fileInfo = await FileSystem.getInfoAsync(book.fileUri);
+      if (!fileInfo.exists) {
+        setContent("Book file not found. It may have been moved or deleted from the device cache.\n\nPlease try re-importing the book.");
+        setIsLoading(false);
+        return;
+      }
+
       if (book.fileType === "epub") {
         if (Platform.OS !== "web") {
           setUseNativeReader(true);
@@ -123,7 +130,12 @@ export default function ReadingScreen() {
             setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
           } catch (err) {
             console.error("Error parsing EPUB:", err);
-            setContent("Error loading EPUB. Please try again.");
+            const errorMsg = err instanceof Error ? err.message : "Unknown error";
+            if (errorMsg.includes("container.xml") || errorMsg.includes("OPF")) {
+              setContent("This EPUB file appears to be corrupted or in an unsupported format.\n\nPlease try downloading the book again from a different source.");
+            } else {
+              setContent(`Error loading EPUB: ${errorMsg}\n\nPlease try again or use a different book file.`);
+            }
             setUseNativeReader(false);
           }
         } else {
@@ -141,21 +153,27 @@ export default function ReadingScreen() {
           setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
         } catch (err) {
           console.error("Error parsing FB2:", err);
-          setContent("Error loading FB2. Please try again.");
+          const errorMsg = err instanceof Error ? err.message : "Unknown error";
+          setContent(`Error loading FB2: ${errorMsg}\n\nPlease check if the file is a valid FB2 format.`);
         }
       } else if (book.fileType === "pdf") {
         setUseNativeReader(true);
         setContent("PDF content");
         setTotalPages(book.totalPages || 10);
       } else if (book.fileType === "txt") {
-        const text = await FileSystem.readAsStringAsync(book.fileUri);
-        setContent(text);
-        const estimatedPages = Math.ceil(text.length / 2000);
-        setTotalPages(estimatedPages);
-        
-        const words = text.split(/\s+/).length;
-        setWordCount(words);
-        setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
+        try {
+          const text = await FileSystem.readAsStringAsync(book.fileUri);
+          setContent(text);
+          const estimatedPages = Math.ceil(text.length / 2000);
+          setTotalPages(estimatedPages);
+          
+          const words = text.split(/\s+/).length;
+          setWordCount(words);
+          setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
+        } catch (err) {
+          console.error("Error reading TXT:", err);
+          setContent("Error reading text file. The file may be corrupted.");
+        }
       }
     } catch (error) {
       console.error("Error loading book:", error);
