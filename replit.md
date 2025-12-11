@@ -145,6 +145,13 @@ server/
   - Very slow deceleration rate for controlled one-line-at-a-time scrolling
 - December 2024: Fixed bionic mode infinite loading by separating layout measurement from styled text rendering
 - December 2024: Removed "Animations/Smooth page transitions" setting from settings screen
+- December 2024: **App Theme Toggle**: Separate light/dark mode for app interface, independent from reading themes
+  - Auto-follow system theme option
+  - Manual light/dark selection
+- December 2024: **Auto-Scroll Start Button**: Glassmorphism overlay on book load
+  - "Готово к чтению" (Ready to read) message with speed indicator
+  - "Начать чтение" (Start Reading) button initiates scrolling
+  - Uses hasUserStartedReadingRef guard to prevent overlay reappearing after dismissal
 
 ## User Preferences
 - No authentication required (local-first app)
