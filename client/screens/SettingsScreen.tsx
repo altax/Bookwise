@@ -8,7 +8,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode } from "@/constants/theme";
+import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode, ScrollModes, ScrollMode } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useReading } from "@/contexts/ReadingContext";
@@ -65,6 +65,13 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     applyReadingMode(mode);
+  };
+
+  const handleScrollModeChange = (mode: ScrollMode) => {
+    if (settings.hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    updateSettings({ scrollMode: mode });
   };
 
   const handleToggle = (key: keyof typeof settings, value: boolean) => {
@@ -216,6 +223,59 @@ export default function SettingsScreen() {
                   ]}
                   onPress={() => handleReadingModeChange(mode)}
                 >
+                  <ThemedText
+                    style={[
+                      styles.readingModeName,
+                      { color: isSelected ? "#FFFFFF" : theme.text },
+                    ]}
+                  >
+                    {modeData.name}
+                  </ThemedText>
+                  <ThemedText
+                    style={[
+                      styles.readingModeDesc,
+                      { color: isSelected ? "rgba(255,255,255,0.8)" : theme.secondaryText },
+                    ]}
+                  >
+                    {modeData.description}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>
+            Scroll Mode
+          </ThemedText>
+
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.readingModes}
+          >
+            {(Object.keys(ScrollModes) as ScrollMode[]).map((mode) => {
+              const modeData = ScrollModes[mode];
+              const isSelected = settings.scrollMode === mode;
+              return (
+                <Pressable
+                  key={mode}
+                  style={[
+                    styles.readingModeCard,
+                    {
+                      backgroundColor: isSelected ? theme.accent : theme.backgroundDefault,
+                      borderColor: isSelected ? theme.accent : theme.border,
+                    },
+                  ]}
+                  onPress={() => handleScrollModeChange(mode)}
+                >
+                  <Feather 
+                    name={mode === "seamless" ? "arrow-down" : "mouse-pointer"} 
+                    size={20} 
+                    color={isSelected ? "#FFFFFF" : theme.text} 
+                    style={{ marginBottom: 4 }}
+                  />
                   <ThemedText
                     style={[
                       styles.readingModeName,

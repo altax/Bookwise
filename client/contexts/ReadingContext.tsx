@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ReadingDefaults, ThemeMode, AvailableFonts, ReadingMode, ReadingModes } from "@/constants/theme";
+import { ReadingDefaults, ThemeMode, AvailableFonts, ReadingMode, ReadingModes, ScrollMode } from "@/constants/theme";
 
 export interface Book {
   id: string;
@@ -72,6 +72,7 @@ interface ReadingSettings {
   bionicReading: boolean;
   focusMode: boolean;
   readingMode: ReadingMode;
+  scrollMode: ScrollMode;
   showReadingProgress: boolean;
   showTimeEstimate: boolean;
   hapticFeedback: boolean;
@@ -116,6 +117,7 @@ const defaultSettings: ReadingSettings = {
   bionicReading: false,
   focusMode: false,
   readingMode: "standard",
+  scrollMode: "seamless",
   showReadingProgress: true,
   showTimeEstimate: true,
   hapticFeedback: true,

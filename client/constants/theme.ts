@@ -342,6 +342,19 @@ export const ReadingModes = {
 
 export type ReadingMode = keyof typeof ReadingModes;
 
+export const ScrollModes = {
+  seamless: {
+    name: "Seamless Scroll",
+    description: "Continuous finger scrolling",
+  },
+  tapScroll: {
+    name: "Tap Scroll",
+    description: "Tap to scroll, highlights last line",
+  },
+};
+
+export type ScrollMode = keyof typeof ScrollModes;
+
 export const Shadows = {
   sm: {
     shadowOffset: { width: 0, height: 1 },

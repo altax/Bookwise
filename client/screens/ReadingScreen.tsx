@@ -5,6 +5,7 @@ import {
   Pressable,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -18,12 +19,7 @@ import Animated, {
   withTiming,
   interpolate,
   Extrapolation,
-  runOnJS,
 } from "react-native-reanimated";
-import {
-  Gesture,
-  GestureDetector,
-} from "react-native-gesture-handler";
 
 import { Spacing, Fonts, Motion, ReadingDefaults } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
@@ -35,15 +31,14 @@ import { SearchModal } from "@/components/SearchModal";
 import { GlassCard } from "@/components/GlassCard";
 import { BookmarkRibbon } from "@/components/BookmarkRibbon";
 import { ReadingTimer } from "@/components/ReadingTimer";
-import { SkeletonReader } from "@/components/Skeleton";
-import { EpubReader, PdfReader, SmartScrollReader } from "@/components/readers";
-import type { SmartScrollReaderRef } from "@/components/readers/SmartScrollReader";
+import { PdfReader, UnifiedScrollReader } from "@/components/readers";
+import type { UnifiedScrollReaderRef } from "@/components/readers";
 import { BookParserService, ParsedBook } from "@/services/BookParserService";
 
 type ReadingRouteProp = RouteProp<RootStackParamList, "Reading">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function ReadingScreen() {
   const insets = useSafeAreaInsets();
@@ -65,10 +60,11 @@ export default function ReadingScreen() {
   
   const activeBook = contextBook?.id === book.id ? contextBook : book;
   
-  const { theme, isDark } = useTheme(settings.themeMode, settings.autoTheme);
+  const { theme } = useTheme(settings.themeMode, settings.autoTheme);
   
   const [content, setContent] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showUI, setShowUI] = useState(false);
   const [currentPage, setCurrentPage] = useState(book.currentPage || 0);
   const [totalPages, setTotalPages] = useState(book.totalPages || 1);
@@ -79,11 +75,10 @@ export default function ReadingScreen() {
   const [wordCount, setWordCount] = useState(0);
   const [estimatedReadingTime, setEstimatedReadingTime] = useState(0);
   const [parsedBook, setParsedBook] = useState<ParsedBook | null>(null);
-  const [useNativeReader, setUseNativeReader] = useState(false);
 
   const startPageRef = useRef(currentPage);
   const sessionStartRef = useRef(Date.now());
-  const smartReaderRef = useRef<SmartScrollReaderRef>(null);
+  const readerRef = useRef<UnifiedScrollReaderRef>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
 
   const uiOpacity = useSharedValue(0);
@@ -109,73 +104,54 @@ export default function ReadingScreen() {
   const loadBookContent = async () => {
     try {
       setIsLoading(true);
+      setLoadError(null);
 
       const fileInfo = await FileSystem.getInfoAsync(book.fileUri);
       if (!fileInfo.exists) {
-        setContent("Book file not found. It may have been moved or deleted from the device cache.\n\nPlease try re-importing the book.");
+        setLoadError("Book file not found. Please try re-importing the book.");
         setIsLoading(false);
         return;
       }
 
+      let parsedContent = "";
+      let pages = 1;
+
       if (book.fileType === "epub") {
-        if (Platform.OS !== "web") {
-          try {
-            const parsed = await BookParserService.parseEpub(book.fileUri);
-            setParsedBook(parsed);
-            setContent(parsed.content);
-            setTotalPages(parsed.totalPages);
-            const words = parsed.content.split(/\s+/).length;
-            setWordCount(words);
-            setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
-          } catch (err) {
-            console.error("Error parsing EPUB:", err);
-            const errorMsg = err instanceof Error ? err.message : "Unknown error";
-            if (errorMsg.includes("container.xml") || errorMsg.includes("OPF")) {
-              setContent("This EPUB file appears to be corrupted or in an unsupported format.\n\nPlease try downloading the book again from a different source.");
-            } else {
-              setContent(`Error loading EPUB: ${errorMsg}\n\nPlease try again or use a different book file.`);
-            }
-          }
-        } else {
-          setContent("EPUB viewing is available on mobile devices.\n\nPlease use the Expo Go app for the best reading experience.");
-          setTotalPages(book.totalPages || 10);
-        }
+        const parsed = await BookParserService.parseEpub(book.fileUri);
+        setParsedBook(parsed);
+        parsedContent = parsed.content;
+        pages = parsed.totalPages;
       } else if (book.fileType === "fb2") {
-        try {
-          const parsed = await BookParserService.parseFb2(book.fileUri);
-          setParsedBook(parsed);
-          setContent(parsed.content);
-          setTotalPages(parsed.totalPages);
-          const words = parsed.content.split(/\s+/).length;
-          setWordCount(words);
-          setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
-        } catch (err) {
-          console.error("Error parsing FB2:", err);
-          const errorMsg = err instanceof Error ? err.message : "Unknown error";
-          setContent(`Error loading FB2: ${errorMsg}\n\nPlease check if the file is a valid FB2 format.`);
-        }
-      } else if (book.fileType === "pdf") {
-        setUseNativeReader(true);
-        setContent("PDF content");
-        setTotalPages(book.totalPages || 10);
+        const parsed = await BookParserService.parseFb2(book.fileUri);
+        setParsedBook(parsed);
+        parsedContent = parsed.content;
+        pages = parsed.totalPages;
       } else if (book.fileType === "txt") {
-        try {
-          const text = await FileSystem.readAsStringAsync(book.fileUri);
-          setContent(text);
-          const estimatedPages = Math.ceil(text.length / 2000);
-          setTotalPages(estimatedPages);
-          
-          const words = text.split(/\s+/).length;
-          setWordCount(words);
-          setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
-        } catch (err) {
-          console.error("Error reading TXT:", err);
-          setContent("Error reading text file. The file may be corrupted.");
-        }
+        parsedContent = await FileSystem.readAsStringAsync(book.fileUri);
+        pages = Math.ceil(parsedContent.length / 2000);
+      } else if (book.fileType === "pdf") {
+        setTotalPages(book.totalPages || 10);
+        setIsLoading(false);
+        return;
       }
+
+      if (!parsedContent || parsedContent.trim().length === 0) {
+        setLoadError("Could not extract text from this book. The file may be corrupted.");
+        setIsLoading(false);
+        return;
+      }
+
+      setContent(parsedContent);
+      setTotalPages(Math.max(pages, 1));
+      
+      const words = parsedContent.split(/\s+/).length;
+      setWordCount(words);
+      setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
+      
     } catch (error) {
       console.error("Error loading book:", error);
-      setContent("Unable to load book content. The file may be corrupted or in an unsupported format.");
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      setLoadError(`Unable to load book: ${errorMsg}`);
     } finally {
       setIsLoading(false);
     }
@@ -244,13 +220,6 @@ export default function ReadingScreen() {
     triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  const handleSmartTap = useCallback(() => {
-    if (smartReaderRef.current) {
-      smartReaderRef.current.handleTapToScroll();
-      triggerHaptic();
-    }
-  }, [triggerHaptic]);
-
   const handleScrollProgress = useCallback((progress: number, currentPosition: number, totalHeight: number) => {
     setScrollProgress(progress);
     const estimatedPage = Math.floor(progress * totalPages);
@@ -278,58 +247,10 @@ export default function ReadingScreen() {
     }
   }, [settings.hapticFeedback]);
 
-  const handleEpubLocationChange = useCallback((location: { start: { percentage: number }; end: { percentage: number } }) => {
-    if (location?.start?.percentage !== undefined) {
-      const newPage = Math.floor(location.start.percentage * totalPages);
-      setCurrentPage(prev => prev !== newPage ? newPage : prev);
-    }
-  }, [totalPages]);
-
   const handlePdfPageChange = useCallback((page: number, total: number) => {
     setCurrentPage(page - 1);
     setTotalPages(total);
   }, []);
-
-  const handleFb2ContentLoaded = useCallback((parsed: ParsedBook) => {
-    setParsedBook(parsed);
-    setTotalPages(parsed.totalPages);
-    const words = parsed.content.split(/\s+/).length;
-    setWordCount(words);
-    setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
-  }, [stats.averageReadingSpeed]);
-
-  const handleTxtContentLoaded = useCallback((content: string, pages: number) => {
-    setContent(content);
-    setTotalPages(pages);
-    const words = content.split(/\s+/).length;
-    setWordCount(words);
-    setEstimatedReadingTime(Math.ceil(words / stats.averageReadingSpeed));
-  }, [stats.averageReadingSpeed]);
-
-  const tapGesture = Gesture.Tap()
-    .onEnd((event) => {
-      const tapX = event.x;
-      const screenThird = SCREEN_WIDTH / 3;
-
-      if (tapX < screenThird) {
-        runOnJS(toggleUI)();
-      } else if (tapX > screenThird * 2) {
-        runOnJS(handleSmartTap)();
-      } else {
-        runOnJS(toggleUI)();
-      }
-    });
-
-  const longPressGesture = Gesture.LongPress()
-    .minDuration(500)
-    .onEnd(() => {
-      if (settings.hapticFeedback) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      }
-      runOnJS(setShowNoteModal)(true);
-    });
-
-  const composedGesture = Gesture.Exclusive(longPressGesture, tapGesture);
 
   const progress = scrollProgress * 100;
   const remainingTime = Math.ceil((1 - scrollProgress) * estimatedReadingTime);
@@ -379,41 +300,35 @@ export default function ReadingScreen() {
     }
   };
 
-  const getTextStyle = () => ({
-    fontSize: settings.fontSize,
-    lineHeight: settings.fontSize * settings.lineSpacing,
-    fontFamily: getFontFamily(),
-    color: theme.text,
-    letterSpacing: settings.letterSpacing || ReadingDefaults.letterSpacing,
-    textAlign: settings.textAlignment as "left" | "justify",
-  });
-
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-        <SkeletonReader />
+      <View style={[styles.container, styles.centered, { backgroundColor: theme.backgroundRoot }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
+        <ThemedText style={[styles.loadingText, { color: theme.secondaryText }]}>
+          Loading book...
+        </ThemedText>
+      </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: theme.backgroundRoot }]}>
+        <Feather name="alert-circle" size={48} color={theme.secondaryText} style={{ marginBottom: 16 }} />
+        <ThemedText style={[styles.errorText, { color: theme.text }]}>
+          {loadError}
+        </ThemedText>
+        <Pressable 
+          onPress={handleClose} 
+          style={[styles.backButton, { borderColor: theme.border }]}
+        >
+          <ThemedText style={{ color: theme.text }}>Go Back</ThemedText>
+        </Pressable>
       </View>
     );
   }
 
   const renderReader = () => {
-    if (book.fileType === "epub" && useNativeReader && Platform.OS !== "web") {
-      return (
-        <EpubReader
-          fileUri={book.fileUri}
-          onLocationChange={handleEpubLocationChange}
-          onReady={() => setIsLoading(false)}
-          onError={(err) => console.error("EPUB error:", err)}
-          theme={{ text: theme.text, backgroundRoot: theme.backgroundRoot }}
-          settings={{
-            fontSize: settings.fontSize,
-            lineSpacing: settings.lineSpacing,
-            fontFamily: getFontFamily(),
-          }}
-        />
-      );
-    }
-
     if (book.fileType === "pdf") {
       return (
         <PdfReader
@@ -426,36 +341,32 @@ export default function ReadingScreen() {
       );
     }
 
-    if (book.fileType === "fb2" || book.fileType === "txt" || content) {
-      return (
-        <SmartScrollReader
-          ref={smartReaderRef}
-          content={content}
-          onScrollProgress={handleScrollProgress}
-          onError={(err) => console.error("Reader error:", err)}
-          theme={{ 
-            text: theme.text, 
-            backgroundRoot: theme.backgroundRoot, 
-            secondaryText: theme.secondaryText,
-            highlightColor: 'rgba(255, 215, 0, 0.5)',
-          }}
-          settings={{
-            fontSize: settings.fontSize,
-            lineSpacing: settings.lineSpacing,
-            fontFamily: settings.fontFamily,
-            marginHorizontal: settings.marginHorizontal,
-            letterSpacing: settings.letterSpacing,
-            textAlignment: settings.textAlignment,
-            bionicReading: settings.bionicReading,
-          }}
-        />
-      );
-    }
-
-    return null;
+    return (
+      <UnifiedScrollReader
+        ref={readerRef}
+        content={content}
+        scrollMode={settings.scrollMode}
+        onScrollProgress={handleScrollProgress}
+        onTap={toggleUI}
+        onError={(err) => console.error("Reader error:", err)}
+        theme={{ 
+          text: theme.text, 
+          backgroundRoot: theme.backgroundRoot, 
+          secondaryText: theme.secondaryText,
+          highlightColor: 'rgba(255, 215, 0, 0.4)',
+        }}
+        settings={{
+          fontSize: settings.fontSize,
+          lineSpacing: settings.lineSpacing,
+          fontFamily: settings.fontFamily,
+          marginHorizontal: settings.marginHorizontal,
+          letterSpacing: settings.letterSpacing,
+          textAlignment: settings.textAlignment,
+          bionicReading: settings.bionicReading,
+        }}
+      />
+    );
   };
-
-  const shouldUseGestures = book.fileType === "txt" || book.fileType === "fb2" || (book.fileType === "epub" && !useNativeReader);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
@@ -465,17 +376,9 @@ export default function ReadingScreen() {
         onBreakSuggested={handleBreakSuggested}
       />
 
-      {shouldUseGestures ? (
-        <GestureDetector gesture={composedGesture}>
-          <View style={styles.contentContainer}>
-            {renderReader()}
-          </View>
-        </GestureDetector>
-      ) : (
-        <View style={styles.contentContainer}>
-          {renderReader()}
-        </View>
-      )}
+      <View style={styles.contentContainer}>
+        {renderReader()}
+      </View>
 
       {!settings.focusMode && (
         <Animated.View
@@ -618,18 +521,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  backButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
   contentContainer: {
     flex: 1,
     width: "100%",
-  },
-  scrollView: {
-    flex: 1,
-  },
-  textContent: {
-    flexGrow: 1,
-  },
-  bookText: {
-    textAlign: "left",
   },
   header: {
     position: "absolute",
@@ -683,26 +597,24 @@ const styles = StyleSheet.create({
   progressBar: {
     flex: 1,
     height: 3,
-    borderRadius: 1.5,
+    borderRadius: 2,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
-    borderRadius: 1.5,
+    borderRadius: 2,
   },
   progressText: {
-    fontSize: 11,
-    fontWeight: "600",
-    minWidth: 32,
+    fontSize: 12,
+    fontWeight: "500",
+    minWidth: 36,
     textAlign: "right",
-    fontVariant: ["tabular-nums"],
   },
   footer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 100,
     paddingHorizontal: Spacing.md,
   },
   footerCard: {
@@ -711,38 +623,34 @@ const styles = StyleSheet.create({
   footerContent: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    justifyContent: "space-around",
+    paddingVertical: Spacing.sm,
   },
   footerButton: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.md,
+    gap: 4,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   footerButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "500",
   },
   footerDivider: {
     width: 1,
-    height: 24,
-    backgroundColor: "rgba(150, 150, 150, 0.2)",
-    marginHorizontal: Spacing.lg,
+    height: 32,
+    backgroundColor: "rgba(128, 128, 128, 0.2)",
   },
   pageInfoContainer: {
     flexDirection: "row",
-    alignItems: "baseline",
+    alignItems: "center",
     gap: 4,
   },
   pageInfo: {
     fontSize: 16,
     fontWeight: "600",
-    fontVariant: ["tabular-nums"],
   },
   pageInfoDivider: {
     fontSize: 14,
-    fontWeight: "400",
   },
 });
