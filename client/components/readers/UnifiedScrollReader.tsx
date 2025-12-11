@@ -99,6 +99,8 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const [isReady, setIsReady] = useState(false);
   const [textContainerY, setTextContainerY] = useState(0);
   const [isAutoScrollPlaying, setIsAutoScrollPlaying] = useState(false);
+  const [showStartOverlay, setShowStartOverlay] = useState(false);
+  const hasUserStartedReadingRef = useRef(false);
   
   const highlightOpacity = useSharedValue(0);
   const animatedScrollY = useSharedValue(0);
@@ -368,6 +370,23 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, []);
 
   useEffect(() => {
+    if (scrollMode === "autoScroll" && isReady && contentHeight > 0 && !hasUserStartedReadingRef.current) {
+      setShowStartOverlay(true);
+    } else if (scrollMode !== "autoScroll") {
+      setShowStartOverlay(false);
+      hasUserStartedReadingRef.current = false;
+    }
+  }, [scrollMode, isReady, contentHeight]);
+
+  const handleStartReading = useCallback(() => {
+    hasUserStartedReadingRef.current = true;
+    setShowStartOverlay(false);
+    setTimeout(() => {
+      startAutoScroll();
+    }, 300);
+  }, [startAutoScroll]);
+
+  useEffect(() => {
     if (initialPosition > 0 && contentHeight > 0 && isReady) {
       const ratio = initialPosition / content.length;
       const targetY = ratio * contentHeight;
@@ -570,6 +589,36 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           </View>
         </ScrollView>
       </Pressable>
+
+      {showStartOverlay && (
+        <View style={styles.startOverlay}>
+          <View style={[styles.startOverlayContent, { backgroundColor: theme.backgroundRoot + 'F2' }]}>
+            <View style={[styles.startIconContainer, { backgroundColor: theme.highlightColor || 'rgba(99, 102, 241, 0.15)' }]}>
+              <Text style={[styles.startIcon, { color: theme.text }]}>▶</Text>
+            </View>
+            <Text style={[styles.startTitle, { color: theme.text }]}>Готово к чтению</Text>
+            <Text style={[styles.startSubtitle, { color: theme.secondaryText }]}>
+              Автоскролл: {autoScrollSpeed} пикс/сек
+            </Text>
+            <Pressable 
+              style={({ pressed }) => [
+                styles.startButton,
+                { 
+                  backgroundColor: theme.highlightColor || '#6366F1',
+                  opacity: pressed ? 0.9 : 1,
+                  transform: [{ scale: pressed ? 0.98 : 1 }]
+                }
+              ]}
+              onPress={handleStartReading}
+            >
+              <Text style={styles.startButtonText}>Начать чтение</Text>
+            </Pressable>
+            <Text style={[styles.startHint, { color: theme.secondaryText }]}>
+              Нажмите на экран, чтобы пауза/продолжить
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 });
@@ -600,5 +649,64 @@ const styles = StyleSheet.create({
     right: -4,
     borderRadius: 4,
     zIndex: -1,
+  },
+  startOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    zIndex: 100,
+  },
+  startOverlayContent: {
+    width: "85%",
+    maxWidth: 340,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  startIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  startIcon: {
+    fontSize: 28,
+    marginLeft: 4,
+  },
+  startTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  startSubtitle: {
+    fontSize: 15,
+    marginBottom: 28,
+    opacity: 0.8,
+  },
+  startButton: {
+    paddingHorizontal: 40,
+    paddingVertical: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  startButtonText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  startHint: {
+    fontSize: 13,
+    textAlign: "center",
+    opacity: 0.7,
   },
 });

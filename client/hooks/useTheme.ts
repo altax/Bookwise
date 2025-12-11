@@ -1,5 +1,6 @@
 import { Colors, ThemeMode } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { AppTheme } from "@/contexts/ReadingContext";
 
 export function useTheme(overrideMode?: ThemeMode, autoTheme: boolean = true) {
   const systemColorScheme = useColorScheme();
@@ -25,5 +26,26 @@ export function useTheme(overrideMode?: ThemeMode, autoTheme: boolean = true) {
     isSepia,
     isAmoled,
     themeMode: effectiveMode,
+  };
+}
+
+export function useAppTheme(appTheme: AppTheme = "light", autoAppTheme: boolean = true) {
+  const systemColorScheme = useColorScheme();
+  
+  let effectiveTheme: AppTheme;
+  
+  if (autoAppTheme) {
+    effectiveTheme = systemColorScheme === "dark" ? "dark" : "light";
+  } else {
+    effectiveTheme = appTheme;
+  }
+  
+  const isDark = effectiveTheme === "dark";
+  const theme = Colors[effectiveTheme] || Colors.light;
+
+  return {
+    theme,
+    isDark,
+    appTheme: effectiveTheme,
   };
 }

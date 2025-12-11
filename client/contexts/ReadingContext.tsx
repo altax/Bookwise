@@ -59,6 +59,8 @@ export interface ReadingStats {
   weeklyReadingTime: number[];
 }
 
+export type AppTheme = "light" | "dark";
+
 interface ReadingSettings {
   fontSize: number;
   lineSpacing: number;
@@ -82,6 +84,8 @@ interface ReadingSettings {
   autoScrollSpeed: number;
   tapScrollAnimationSpeed: number;
   tapScrollLinePosition: TapScrollLinePositionType;
+  appTheme: AppTheme;
+  autoAppTheme: boolean;
 }
 
 interface ReadingContextType {
@@ -130,6 +134,8 @@ const defaultSettings: ReadingSettings = {
   autoScrollSpeed: AutoScrollDefaults.defaultSpeed,
   tapScrollAnimationSpeed: TapScrollDefaults.defaultAnimationSpeed,
   tapScrollLinePosition: "top",
+  appTheme: "light",
+  autoAppTheme: true,
 };
 
 const defaultStats: ReadingStats = {

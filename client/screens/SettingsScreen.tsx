@@ -633,14 +633,121 @@ export default function SettingsScreen() {
 
         <View style={styles.section}>
           <ThemedText type="h4" style={styles.sectionTitle}>
-            Theme
+            Тема приложения
           </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.settingRow}>
               <View style={styles.settingLabelRow}>
                 <Feather name="sun" size={20} color={theme.text} />
-                <ThemedText style={styles.settingLabel}>Auto Theme</ThemedText>
+                <View>
+                  <ThemedText style={styles.settingLabel}>Авто тема</ThemedText>
+                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                    Следовать системной теме
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={settings.autoAppTheme}
+                onValueChange={(value) => {
+                  if (settings.hapticFeedback) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  updateSettings({ autoAppTheme: value });
+                }}
+                trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          <View style={[styles.appThemeToggle, { backgroundColor: theme.backgroundDefault }]}>
+            <Pressable
+              style={[
+                styles.appThemeOption,
+                {
+                  backgroundColor: !settings.autoAppTheme && settings.appTheme === "light" 
+                    ? theme.accent 
+                    : theme.backgroundSecondary,
+                  opacity: settings.autoAppTheme ? 0.5 : 1,
+                },
+              ]}
+              onPress={() => {
+                if (!settings.autoAppTheme) {
+                  if (settings.hapticFeedback) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  updateSettings({ appTheme: "light" });
+                }
+              }}
+              disabled={settings.autoAppTheme}
+            >
+              <Feather 
+                name="sun" 
+                size={22} 
+                color={!settings.autoAppTheme && settings.appTheme === "light" ? "#FFFFFF" : theme.text} 
+              />
+              <ThemedText
+                style={[
+                  styles.appThemeOptionText,
+                  { color: !settings.autoAppTheme && settings.appTheme === "light" ? "#FFFFFF" : theme.text },
+                ]}
+              >
+                Светлая
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.appThemeOption,
+                {
+                  backgroundColor: !settings.autoAppTheme && settings.appTheme === "dark" 
+                    ? theme.accent 
+                    : theme.backgroundSecondary,
+                  opacity: settings.autoAppTheme ? 0.5 : 1,
+                },
+              ]}
+              onPress={() => {
+                if (!settings.autoAppTheme) {
+                  if (settings.hapticFeedback) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  updateSettings({ appTheme: "dark" });
+                }
+              }}
+              disabled={settings.autoAppTheme}
+            >
+              <Feather 
+                name="moon" 
+                size={22} 
+                color={!settings.autoAppTheme && settings.appTheme === "dark" ? "#FFFFFF" : theme.text} 
+              />
+              <ThemedText
+                style={[
+                  styles.appThemeOptionText,
+                  { color: !settings.autoAppTheme && settings.appTheme === "dark" ? "#FFFFFF" : theme.text },
+                ]}
+              >
+                Тёмная
+              </ThemedText>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="h4" style={styles.sectionTitle}>
+            Тема чтения
+          </ThemedText>
+
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingLabelRow}>
+                <Feather name="book-open" size={20} color={theme.text} />
+                <View>
+                  <ThemedText style={styles.settingLabel}>Авто тема чтения</ThemedText>
+                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                    Следовать системной теме
+                  </ThemedText>
+                </View>
               </View>
               <Switch
                 value={settings.autoTheme}
@@ -649,9 +756,6 @@ export default function SettingsScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
-            <ThemedText style={[styles.settingHint, { color: theme.secondaryText, marginTop: Spacing.xs }]}>
-              Follow system appearance
-            </ThemedText>
           </View>
 
           <View style={styles.themeGrid}>
@@ -1024,6 +1128,25 @@ const styles = StyleSheet.create({
   },
   linePositionOptionText: {
     fontSize: 14,
+    fontWeight: "600",
+  },
+  appThemeToggle: {
+    flexDirection: "row",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+  },
+  appThemeOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  appThemeOptionText: {
+    fontSize: 15,
     fontWeight: "600",
   },
 });
