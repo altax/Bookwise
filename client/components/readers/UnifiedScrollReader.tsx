@@ -487,8 +487,10 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [scrollMode, isReady]);
 
   useEffect(() => {
-    if (scrollMode === "karaoke" && content && content.length > 0 && nonEmptyLines.length === 0) {
-      const generateLines = () => {
+    if (scrollMode === "karaoke" && content && content.length > 0) {
+      console.log('[Karaoke] Generating lines, content length:', content.length, 'nonEmptyLines:', nonEmptyLines.length);
+      
+      if (nonEmptyLines.length === 0) {
         const paragraphs = content.split(/\n+/);
         const lines: MeasuredLine[] = [];
         const avgCharsPerLine = 50;
@@ -534,16 +536,15 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           }
         });
         
+        console.log('[Karaoke] Generated lines:', lines.length);
+        
         if (lines.length > 0) {
           measuredLinesRef.current = lines;
           nonEmptyLinesRef.current = lines;
           setNonEmptyLines(lines);
           setIsReady(true);
         }
-      };
-      
-      const fallbackTimer = setTimeout(generateLines, 50);
-      return () => clearTimeout(fallbackTimer);
+      }
     }
   }, [scrollMode, content, settings.fontSize, settings.lineSpacing, nonEmptyLines.length]);
 
