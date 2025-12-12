@@ -484,17 +484,15 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       return [];
     }
     
-    const paragraphs = content.split(/\n+/);
+    const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const paragraphs = normalizedContent.split(/\n+/).filter(p => p.trim().length > 0);
+    
     const lines: MeasuredLine[] = [];
     const avgCharsPerLine = 45;
     const currentLineHeight = settings.fontSize * settings.lineSpacing;
     
-    paragraphs.forEach((paragraph) => {
-      if (paragraph.trim().length === 0) return;
-      
-      const words = paragraph.trim().split(/\s+/);
+    const processWords = (words: string[]) => {
       let currentLine = '';
-      
       words.forEach((word) => {
         if ((currentLine + ' ' + word).length > avgCharsPerLine && currentLine.length > 0) {
           lines.push({
@@ -513,7 +511,6 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           currentLine = currentLine ? currentLine + ' ' + word : word;
         }
       });
-      
       if (currentLine.trim().length > 0) {
         lines.push({
           text: currentLine.trim(),
@@ -527,7 +524,18 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           xHeight: 0,
         });
       }
-    });
+    };
+    
+    if (paragraphs.length === 0) {
+      const words = content.trim().split(/\s+/).filter(w => w.length > 0);
+      if (words.length === 0) return [];
+      processWords(words);
+    } else {
+      paragraphs.forEach((paragraph) => {
+        const words = paragraph.trim().split(/\s+/).filter(w => w.length > 0);
+        processWords(words);
+      });
+    }
     
     return lines;
   }, [scrollMode, content, settings.fontSize, settings.lineSpacing]);
@@ -544,9 +552,10 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   }, [scrollMode, karaokeLines]);
 
   const handleKaraokeAdvance = useCallback(() => {
-    if (nonEmptyLines.length === 0) return;
+    const lines = karaokeLines.length > 0 ? karaokeLines : nonEmptyLines;
+    if (lines.length === 0) return;
     
-    if (karaokeCurrentLine >= nonEmptyLines.length - 1) {
+    if (karaokeCurrentLine >= lines.length - 1) {
       return;
     }
 
@@ -558,15 +567,16 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
     });
 
-    if (nonEmptyLines.length > 0) {
-      const progress = nextLine / (nonEmptyLines.length - 1);
-      onScrollProgress?.(Math.min(1, progress), nextLine, nonEmptyLines.length);
+    if (lines.length > 1) {
+      const progress = nextLine / (lines.length - 1);
+      onScrollProgress?.(Math.min(1, progress), nextLine, lines.length);
     }
-  }, [karaokeCurrentLine, nonEmptyLines, karaokeAnimatedLine, onScrollProgress]);
+  }, [karaokeCurrentLine, karaokeLines, nonEmptyLines, karaokeAnimatedLine, onScrollProgress]);
 
   const handleKaraokeBack = useCallback(() => {
     if (karaokeCurrentLine <= 0) return;
     
+    const lines = karaokeLines.length > 0 ? karaokeLines : nonEmptyLines;
     const prevLine = karaokeCurrentLine - 1;
     setKaraokeCurrentLine(prevLine);
     
@@ -575,11 +585,11 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
     });
 
-    if (nonEmptyLines.length > 0) {
-      const progress = prevLine / (nonEmptyLines.length - 1);
-      onScrollProgress?.(Math.min(1, progress), prevLine, nonEmptyLines.length);
+    if (lines.length > 1) {
+      const progress = prevLine / (lines.length - 1);
+      onScrollProgress?.(Math.min(1, progress), prevLine, lines.length);
     }
-  }, [karaokeCurrentLine, nonEmptyLines, karaokeAnimatedLine, onScrollProgress]);
+  }, [karaokeCurrentLine, karaokeLines, nonEmptyLines, karaokeAnimatedLine, onScrollProgress]);
 
   const handleStartReading = useCallback(() => {
     hasUserStartedReadingRef.current = true;
@@ -768,7 +778,7 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           <View style={[styles.karaokeBadge, { backgroundColor: theme.backgroundRoot + 'E6' }]}>
             <Feather name="mic" size={12} color={theme.text} />
             <Text style={[styles.karaokeText, { color: theme.text }]}>
-              {karaokeCurrentLine + 1}/{nonEmptyLines.length || '?'}
+              {karaokeCurrentLine + 1}/{karaokeLines.length || nonEmptyLines.length || '?'}
             </Text>
           </View>
         </View>

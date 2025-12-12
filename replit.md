@@ -118,6 +118,8 @@ server/
 4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
+- December 2024: **KARAOKE MODE FIX**: Fixed critical bug where karaoke mode showed eternal loading. The issue was a race condition where handlers checked `nonEmptyLines.length` but state wasn't populated in time. Fixed by using memoized `karaokeLines` directly. Also added fallback for content without newlines (splits by words).
+- December 2024: **Code Cleanup**: Removed unused imports and console.log statements from EpubReader.
 - December 2024: **TAP-SCROLL MODE REMOVED**: Completely removed tap-scroll mode from the app per user request. App now supports only two scroll modes: Seamless (manual finger scrolling) and Auto-Scroll (automatic scrolling at configurable speed).
 - December 2024: **UX Improvements**:
   - Auto-scroll automatically pauses when opening the general menu

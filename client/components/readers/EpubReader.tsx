@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { View, StyleSheet, ActivityIndicator, Platform, Pressable, useWindowDimensions } from "react-native";
-import { Reader, ReaderProvider, useReader } from "@epubjs-react-native/core";
+import { Reader, ReaderProvider } from "@epubjs-react-native/core";
 import { useFileSystem } from "@epubjs-react-native/expo-file-system";
 import * as FileSystem from "expo-file-system/legacy";
 import { ThemedText } from "@/components/ThemedText";
@@ -33,7 +33,6 @@ function EpubReaderContent({
   settings,
 }: EpubReaderProps) {
   const { width, height } = useWindowDimensions();
-  const { goToLocation, currentLocation } = useReader();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fileExists, setFileExists] = useState(true);
@@ -200,9 +199,7 @@ function EpubReaderContent({
         width={width}
         height={height - 100}
         enableSwipe={true}
-        onStarted={() => {
-          console.log("EPUB Reader started");
-        }}
+        onStarted={() => {}}
         onReady={handleReady}
         onDisplayError={handleError}
         onLocationChange={handleLocationChange}
