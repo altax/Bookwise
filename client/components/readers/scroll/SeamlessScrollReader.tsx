@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BaseReaderProps, MeasuredLine, UnifiedScrollReaderRef } from "./types";
 import { getFontFamily, renderBionicWord, generateLinesFromContent, createTextStyle } from "./utils";
 
-export const ManualScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReaderProps>(
+export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReaderProps>(
   (
     {
       content,

@@ -1,6 +1,6 @@
 import React, { forwardRef } from "react";
 import type { ScrollMode } from "@/constants/theme";
-import { ManualScrollReader } from "./scroll/ManualScrollReader";
+import { SeamlessScrollReader } from "./scroll/SeamlessScrollReader";
 import { AutoScrollReader } from "./scroll/AutoScrollReader";
 import { KaraokeReader } from "./scroll/KaraokeReader";
 import type { UnifiedScrollReaderRef, UnifiedScrollReaderProps } from "./scroll/types";
@@ -53,9 +53,9 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
           />
         );
 
-      case "manual":
+      case "seamless":
       default:
-        return <ManualScrollReader ref={ref} {...commonProps} />;
+        return <SeamlessScrollReader ref={ref} {...commonProps} />;
     }
   }
 );
