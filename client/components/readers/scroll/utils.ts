@@ -1,6 +1,24 @@
 import React from "react";
-import { Platform, Text } from "react-native";
+import { Platform, Text, Dimensions } from "react-native";
 import type { MeasuredLine, ReaderSettings } from "./types";
+
+export const calculateCharsPerLine = (
+  availableWidth: number,
+  fontSize: number,
+  letterSpacing: number = 0,
+  fontFamily: string = "system"
+): number => {
+  const avgCharWidth = fontSize * 0.52 + letterSpacing;
+  
+  const charsPerLine = Math.floor(availableWidth / avgCharWidth);
+  
+  return Math.max(15, Math.min(80, charsPerLine));
+};
+
+export const getAvailableWidth = (horizontalPadding: number = 24): number => {
+  const screenWidth = Dimensions.get("window").width;
+  return screenWidth - horizontalPadding * 2;
+};
 
 export const getFontFamily = (fontFamily: string): string => {
   switch (fontFamily) {

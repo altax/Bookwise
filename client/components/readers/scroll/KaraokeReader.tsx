@@ -13,7 +13,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Feather } from "@expo/vector-icons";
 import { KaraokeDefaults } from "@/constants/theme";
 import type { KaraokeReaderProps, MeasuredLine, UnifiedScrollReaderRef } from "./types";
-import { getFontFamily, renderBionicWord, generateLinesFromContentAsync, createTextStyle } from "./utils";
+import { getFontFamily, renderBionicWord, generateLinesFromContentAsync, createTextStyle, calculateCharsPerLine, getAvailableWidth } from "./utils";
 
 const getScreenDimensions = () => Dimensions.get("window");
 
@@ -86,7 +86,6 @@ const KaraokeLine = React.memo(
               color: theme.text,
             },
           ]}
-          numberOfLines={1}
         >
           {bionicReading
             ? line.text.split(/(\s+)/).map((part, i) => renderBionicWord(part, i))
@@ -114,44 +113,63 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
   ) => {
     const [screenDimensions, setScreenDimensions] = useState(() => getScreenDimensions());
     const [viewportHeight, setViewportHeight] = useState(screenDimensions.height);
+    const [availableWidth, setAvailableWidth] = useState(() => getAvailableWidth(24));
     const [isReady, setIsReady] = useState(false);
     const [karaokeCurrentLine, setKaraokeCurrentLine] = useState(0);
     const [karaokeLines, setKaraokeLines] = useState<MeasuredLine[]>([]);
     const karaokeAnimatedLine = useSharedValue(0);
     const generationIdRef = useRef(0);
     const onReadyCalledRef = useRef(false);
+    
+    const karaokeStateRef = useRef({ currentLine: 0, totalLines: 0, isReady: false });
 
     useEffect(() => {
       const subscription = Dimensions.addEventListener("change", ({ window }) => {
         setScreenDimensions(window);
+        setAvailableWidth(window.width - 48);
       });
       return () => subscription?.remove();
     }, []);
 
+    useEffect(() => {
+      karaokeStateRef.current = {
+        currentLine: karaokeCurrentLine,
+        totalLines: karaokeLines.length,
+        isReady,
+      };
+    }, [karaokeCurrentLine, karaokeLines.length, isReady]);
+
     const lineHeight = settings.fontSize * settings.lineSpacing;
     const screenCenter = viewportHeight / 2;
+    
+    const charsPerLine = useMemo(() => {
+      return calculateCharsPerLine(availableWidth, settings.fontSize, settings.letterSpacing);
+    }, [availableWidth, settings.fontSize, settings.letterSpacing]);
 
     useEffect(() => {
       if (!content || content.length === 0) {
         setKaraokeLines([]);
         setIsReady(false);
         onReadyCalledRef.current = false;
+        karaokeStateRef.current = { currentLine: 0, totalLines: 0, isReady: false };
         return;
       }
 
       const currentGenerationId = ++generationIdRef.current;
       onReadyCalledRef.current = false;
+      setIsReady(false);
 
       generateLinesFromContentAsync(
         content,
         lineHeight,
-        45,
+        charsPerLine,
         (firstChunkLines) => {
           if (currentGenerationId !== generationIdRef.current) return;
           setKaraokeLines(firstChunkLines);
           setKaraokeCurrentLine(0);
           karaokeAnimatedLine.value = 0;
           setIsReady(true);
+          karaokeStateRef.current = { currentLine: 0, totalLines: firstChunkLines.length, isReady: true };
           if (!onReadyCalledRef.current) {
             onReadyCalledRef.current = true;
             onReady?.();
@@ -161,9 +179,11 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
       ).then((allLines) => {
         if (currentGenerationId !== generationIdRef.current) return;
         setKaraokeLines(allLines);
+        karaokeStateRef.current.totalLines = allLines.length;
         if (!onReadyCalledRef.current && allLines.length > 0) {
           onReadyCalledRef.current = true;
           setIsReady(true);
+          karaokeStateRef.current.isReady = true;
           onReady?.();
         }
       });
@@ -171,45 +191,53 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
       return () => {
         generationIdRef.current++;
       };
-    }, [content, lineHeight, onReady]);
+    }, [content, lineHeight, charsPerLine, onReady]);
 
     const handleKaraokeAdvance = useCallback(() => {
-      if (karaokeLines.length === 0) return;
-
-      if (karaokeCurrentLine >= karaokeLines.length - 1) {
+      const state = karaokeStateRef.current;
+      
+      if (!state.isReady || state.totalLines === 0) {
         return;
       }
 
-      const nextLine = karaokeCurrentLine + 1;
+      if (state.currentLine >= state.totalLines - 1) {
+        return;
+      }
+
+      const nextLine = state.currentLine + 1;
       setKaraokeCurrentLine(nextLine);
+      karaokeStateRef.current.currentLine = nextLine;
 
       karaokeAnimatedLine.value = withTiming(nextLine, {
         duration: KaraokeDefaults.animationDuration,
         easing: Easing.bezier(0.25, 0.1, 0.25, 1),
       });
 
-      if (karaokeLines.length > 1) {
-        const progress = nextLine / (karaokeLines.length - 1);
-        onScrollProgress?.(Math.min(1, progress), nextLine, karaokeLines.length);
+      if (state.totalLines > 1) {
+        const progress = nextLine / (state.totalLines - 1);
+        onScrollProgress?.(Math.min(1, progress), nextLine, state.totalLines);
       }
-    }, [karaokeCurrentLine, karaokeLines, karaokeAnimatedLine, onScrollProgress]);
+    }, [karaokeAnimatedLine, onScrollProgress]);
 
     const handleKaraokeBack = useCallback(() => {
-      if (karaokeCurrentLine <= 0) return;
+      const state = karaokeStateRef.current;
+      
+      if (!state.isReady || state.currentLine <= 0) return;
 
-      const prevLine = karaokeCurrentLine - 1;
+      const prevLine = state.currentLine - 1;
       setKaraokeCurrentLine(prevLine);
+      karaokeStateRef.current.currentLine = prevLine;
 
       karaokeAnimatedLine.value = withTiming(prevLine, {
         duration: KaraokeDefaults.animationDuration,
         easing: Easing.bezier(0.25, 0.1, 0.25, 1),
       });
 
-      if (karaokeLines.length > 1) {
-        const progress = prevLine / (karaokeLines.length - 1);
-        onScrollProgress?.(Math.min(1, progress), prevLine, karaokeLines.length);
+      if (state.totalLines > 1) {
+        const progress = prevLine / (state.totalLines - 1);
+        onScrollProgress?.(Math.min(1, progress), prevLine, state.totalLines);
       }
-    }, [karaokeCurrentLine, karaokeLines, karaokeAnimatedLine, onScrollProgress]);
+    }, [karaokeAnimatedLine, onScrollProgress]);
 
     const scrollToPosition = useCallback(
       (position: number) => {
