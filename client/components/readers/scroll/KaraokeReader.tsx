@@ -470,7 +470,7 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
           </View>
 
           {karaokeLines.length > 0 && (
-            <View style={styles.progressSliderContainer}>
+            <View style={[styles.progressSliderContainer, { bottom: 30 + progressBarHeight }]}>
               <Pressable
                 style={[styles.controlButton, { backgroundColor: "rgba(0,0,0,0.5)" }]}
                 onPress={handleKaraokeBack}
@@ -507,7 +507,7 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
             </View>
           )}
 
-          <View style={styles.karaokeHint}>
+          <View style={[styles.karaokeHint, { bottom: 90 + progressBarHeight }]}>
             <Text style={[styles.hintText, { color: theme.secondaryText }]}>
               {karaokeAutoAdvance 
                 ? (isAutoAdvancing ? "Tap right to pause" : "Tap right to resume")
@@ -567,7 +567,6 @@ const styles = StyleSheet.create({
   },
   karaokeHint: {
     position: "absolute",
-    bottom: 90,
     left: 0,
     right: 0,
     alignItems: "center",
@@ -578,7 +577,6 @@ const styles = StyleSheet.create({
   },
   progressSliderContainer: {
     position: "absolute",
-    bottom: 30,
     left: 16,
     right: 16,
     flexDirection: "row",

@@ -5,6 +5,7 @@ export interface ReaderTheme {
   backgroundRoot: string;
   secondaryText: string;
   highlightColor?: string;
+  accent?: string;
 }
 
 export interface ReaderSettings {
@@ -16,6 +17,9 @@ export interface ReaderSettings {
   textAlignment: "left" | "justify";
   bionicReading: boolean;
   autoScrollSpeed?: number;
+  karaokeAutoAdvance?: boolean;
+  karaokeAutoAdvanceSpeed?: number;
+  karaokeUpcomingOpacity?: number;
 }
 
 export interface BaseReaderProps {

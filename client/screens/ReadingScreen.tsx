@@ -428,6 +428,7 @@ export default function ReadingScreen() {
           backgroundRoot: theme.backgroundRoot, 
           secondaryText: theme.secondaryText,
           highlightColor: 'rgba(255, 215, 0, 0.4)',
+          accent: theme.accent,
         }}
         settings={{
           fontSize: settings.fontSize,
@@ -438,6 +439,9 @@ export default function ReadingScreen() {
           textAlignment: settings.textAlignment,
           bionicReading: settings.bionicReading,
           autoScrollSpeed: settings.autoScrollSpeed,
+          karaokeAutoAdvance: settings.karaokeAutoAdvance,
+          karaokeAutoAdvanceSpeed: settings.karaokeAutoAdvanceSpeed,
+          karaokeUpcomingOpacity: settings.karaokeUpcomingOpacity,
         }}
         progressBarHeight={settings.showReadingProgress ? PROGRESS_BAR_HEIGHT : 0}
         pauseAutoScroll={pauseAutoScrollIfPlaying}

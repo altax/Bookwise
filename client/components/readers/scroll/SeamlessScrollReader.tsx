@@ -11,19 +11,14 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withTiming,
   runOnJS,
-  useAnimatedReaction,
-  Easing,
   useAnimatedRef,
   scrollTo,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { BaseReaderProps, MeasuredLine, UnifiedScrollReaderRef } from "./types";
-import { getFontFamily, renderBionicWord, generateLinesFromContentAsync, createTextStyle } from "./utils";
-
-const CHUNK_SIZE = 100;
+import type { BaseReaderProps, UnifiedScrollReaderRef } from "./types";
+import { renderBionicWord, createTextStyle } from "./utils";
 
 export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReaderProps>(
   (
@@ -41,130 +36,56 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
   ) => {
     const insets = useSafeAreaInsets();
     const animatedScrollViewRef = useAnimatedRef<Animated.ScrollView>();
-    const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const [contentHeight, setContentHeight] = useState(0);
     const [viewportHeight, setViewportHeight] = useState(0);
     const [currentScrollY, setCurrentScrollY] = useState(0);
-    const [highlightedLineY, setHighlightedLineY] = useState<number | null>(null);
-    const [highlightedLineHeight, setHighlightedLineHeight] = useState(0);
     const [isReady, setIsReady] = useState(false);
-    const [textContainerY, setTextContainerY] = useState(0);
-    const [displayedLines, setDisplayedLines] = useState<MeasuredLine[]>([]);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-    const allLinesRef = useRef<MeasuredLine[]>([]);
-    const generationIdRef = useRef(0);
     const onReadyCalledRef = useRef(false);
-
-    const highlightOpacity = useSharedValue(0);
-    const animatedScrollY = useSharedValue(0);
-    const isAnimatingScrollShared = useSharedValue(0);
-    const scrollAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const lineHeight = settings.fontSize * settings.lineSpacing;
     const paddingTop = insets.top + 60;
     const paddingBottom = insets.bottom + 60 + progressBarHeight;
 
+    const normalizedContent = useMemo(() => {
+      if (!content || content.length === 0) return "";
+      return content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    }, [content]);
+
     useEffect(() => {
       if (!content || content.length === 0) {
-        setDisplayedLines([]);
         setIsReady(false);
         onReadyCalledRef.current = false;
         return;
       }
 
-      const currentGenerationId = ++generationIdRef.current;
-      onReadyCalledRef.current = false;
-      setIsReady(false);
-      setDisplayedLines([]);
-      allLinesRef.current = [];
-
-      generateLinesFromContentAsync(
-        content,
-        lineHeight,
-        50,
-        (firstChunkLines) => {
-          if (currentGenerationId !== generationIdRef.current) return;
-          allLinesRef.current = firstChunkLines;
-          setDisplayedLines(firstChunkLines.slice(0, CHUNK_SIZE));
-          setIsReady(true);
-          if (!onReadyCalledRef.current) {
-            onReadyCalledRef.current = true;
-            onReady?.();
-          }
-        },
-        CHUNK_SIZE
-      ).then((allLines) => {
-        if (currentGenerationId !== generationIdRef.current) return;
-        allLinesRef.current = allLines;
-        if (!onReadyCalledRef.current && allLines.length > 0) {
-          setDisplayedLines(allLines.slice(0, CHUNK_SIZE));
-          onReadyCalledRef.current = true;
-          setIsReady(true);
-          onReady?.();
-        }
-      });
-
-      return () => {
-        generationIdRef.current++;
-      };
-    }, [content, lineHeight, onReady]);
-
-    const loadMoreLines = useCallback(() => {
-      if (isLoadingMore) return;
-      if (displayedLines.length >= allLinesRef.current.length) return;
-
-      setIsLoadingMore(true);
-      setTimeout(() => {
-        const nextChunk = allLinesRef.current.slice(
-          displayedLines.length,
-          displayedLines.length + CHUNK_SIZE
-        );
-        setDisplayedLines(prev => [...prev, ...nextChunk]);
-        setIsLoadingMore(false);
-      }, 0);
-    }, [displayedLines.length, isLoadingMore]);
-
-    const updateScrollPosition = useCallback(
-      (y: number) => {
-        scrollTo(animatedScrollViewRef, 0, y, false);
-      },
-      [animatedScrollViewRef]
-    );
-
-    const finishScrollAnimation = useCallback(() => {
-      isAnimatingScrollShared.value = 0;
-    }, [isAnimatingScrollShared]);
-
-    useAnimatedReaction(
-      () => ({ y: animatedScrollY.value, isAnimating: isAnimatingScrollShared.value }),
-      (current) => {
-        if (current.isAnimating === 1) {
-          runOnJS(updateScrollPosition)(current.y);
-        }
-      },
-      [updateScrollPosition]
-    );
+      setIsReady(true);
+      if (!onReadyCalledRef.current) {
+        onReadyCalledRef.current = true;
+        onReady?.();
+      }
+    }, [content, onReady]);
 
     const scrollToPosition = useCallback(
       (position: number) => {
-        if (contentHeight <= 0) return;
+        if (contentHeight <= 0 || content.length === 0) return;
 
         const ratio = position / content.length;
-        const targetY = ratio * contentHeight;
+        const maxScroll = Math.max(contentHeight - viewportHeight, 0);
+        const targetY = ratio * maxScroll;
 
         scrollTo(animatedScrollViewRef, 0, targetY, false);
       },
-      [contentHeight, content.length, animatedScrollViewRef]
+      [contentHeight, content.length, viewportHeight, animatedScrollViewRef]
     );
 
     const getCurrentPosition = useCallback((): number => {
       if (contentHeight <= 0 || content.length === 0) return 0;
-      const maxScroll = Math.max(contentHeight - viewportHeight + paddingTop + paddingBottom, 1);
-      const ratio = currentScrollY / maxScroll;
-      return Math.floor(Math.min(1, Math.max(0, ratio)) * content.length);
-    }, [currentScrollY, contentHeight, content.length, viewportHeight, paddingTop, paddingBottom]);
+      const maxScroll = Math.max(contentHeight - viewportHeight, 1);
+      const ratio = Math.min(1, Math.max(0, currentScrollY / maxScroll));
+      return Math.floor(ratio * content.length);
+    }, [currentScrollY, contentHeight, content.length, viewportHeight]);
 
     useImperativeHandle(
       ref,
@@ -187,19 +108,13 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
           const maxScroll = contentSize.height - layoutMeasurement.height;
           const progress = maxScroll > 0 ? contentOffset.y / maxScroll : 0;
           onScrollProgress?.(Math.min(1, Math.max(0, progress)), contentOffset.y, contentSize.height);
-
-          const scrollPercent = maxScroll > 0 ? contentOffset.y / maxScroll : 0;
-          if (scrollPercent > 0.7) {
-            loadMoreLines();
-          }
         }
       },
-      [onScrollProgress, loadMoreLines]
+      [onScrollProgress]
     );
 
     const handleContentLayout = useCallback((event: LayoutChangeEvent) => {
       setContentHeight(event.nativeEvent.layout.height);
-      setTextContainerY(event.nativeEvent.layout.y);
     }, []);
 
     const handleViewportLayout = useCallback((event: LayoutChangeEvent) => {
@@ -207,36 +122,20 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
     }, []);
 
     useEffect(() => {
-      if (initialPosition > 0 && contentHeight > 0 && isReady) {
+      if (initialPosition > 0 && contentHeight > 0 && viewportHeight > 0 && isReady) {
         const ratio = initialPosition / content.length;
-        const targetY = ratio * contentHeight;
+        const maxScroll = Math.max(contentHeight - viewportHeight, 0);
+        const targetY = ratio * maxScroll;
         setTimeout(() => {
           scrollTo(animatedScrollViewRef, 0, targetY, false);
         }, 150);
       }
-    }, [initialPosition, contentHeight, content.length, isReady]);
-
-    useEffect(() => {
-      return () => {
-        if (highlightTimeoutRef.current) {
-          clearTimeout(highlightTimeoutRef.current);
-        }
-        if (scrollAnimationTimeoutRef.current) {
-          clearTimeout(scrollAnimationTimeoutRef.current);
-        }
-      };
-    }, []);
+    }, [initialPosition, contentHeight, viewportHeight, content.length, isReady, animatedScrollViewRef]);
 
     const textStyle = useMemo(
       () => createTextStyle(settings, lineHeight, theme.text),
       [settings, lineHeight, theme.text]
     );
-
-    const highlightAnimatedStyle = useAnimatedStyle(() => ({
-      opacity: highlightOpacity.value,
-    }));
-
-    const highlightColor = theme.highlightColor || "rgba(255, 215, 0, 0.45)";
 
     const tapGesture = Gesture.Tap()
       .onEnd((event) => {
@@ -262,45 +161,24 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
         );
       }
 
-      const textToRender = displayedLines.map((line, index) => {
-        const lineText = settings.bionicReading
-          ? line.text.split(/(\s+)/).map((part, i) => renderBionicWord(part, `${index}-${i}`))
-          : line.text;
+      if (settings.bionicReading) {
+        const words = normalizedContent.split(/(\s+)/);
         return (
-          <Text key={index} style={[styles.lineText, textStyle]}>
-            {lineText}
-            {"\n"}
+          <Text style={[styles.contentText, textStyle]}>
+            {words.map((word, i) => renderBionicWord(word, i))}
           </Text>
         );
-      });
+      }
 
       return (
-        <>
-          {textToRender}
-          {isLoadingMore && (
-            <View style={styles.loadingMoreContainer}>
-              <ActivityIndicator size="small" color={theme.accent || theme.text} />
-            </View>
-          )}
-        </>
+        <Text style={[styles.contentText, textStyle]}>
+          {normalizedContent}
+        </Text>
       );
     };
 
     return (
       <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]} onLayout={handleViewportLayout}>
-        {highlightedLineY !== null && (
-          <Animated.View
-            style={[
-              styles.highlightOverlay,
-              highlightAnimatedStyle,
-              {
-                top: highlightedLineY - currentScrollY + textContainerY + paddingTop,
-                height: highlightedLineHeight,
-                backgroundColor: highlightColor,
-              },
-            ]}
-          />
-        )}
         <GestureDetector gesture={tapGesture}>
           <Animated.ScrollView
             ref={animatedScrollViewRef}
@@ -335,15 +213,8 @@ const styles = StyleSheet.create({
   contentContainer: {
     flexGrow: 1,
   },
-  lineText: {
+  contentText: {
     flexWrap: "wrap",
-  },
-  highlightOverlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    zIndex: 1,
-    pointerEvents: "none",
   },
   loadingContainer: {
     flex: 1,
@@ -354,9 +225,5 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 14,
-  },
-  loadingMoreContainer: {
-    paddingVertical: 20,
-    alignItems: "center",
   },
 });
