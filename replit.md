@@ -128,6 +128,15 @@ server/
 4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
+- December 2024: **UI/UX IMPROVEMENTS v4**:
+  - **Karaoke progress controls repositioned**: Moved from bottom (was overlapping text) to top of screen
+  - **Settings panel redesigned**: Now opens instantly without animation, 45% height bottom sheet with transparent backdrop for real-time text preview
+  - **Letter spacing slider**: Added to settings panel for fine typography control
+  - **Bionic reading performance fix**: Chunked text processing (5000 char chunks) prevents UI freeze on large books
+  - **Dictionary mode**: New feature with input field to manually add words to personal dictionary with translations/notes
+  - **TableOfContents enhanced**: Three tabs (Chapters, Bookmarks, Notes) for easy access to saved content with navigation to selected items
+  - **DictionaryContext**: New context for storing and managing dictionary words with AsyncStorage persistence
+  - **WordModal**: Modal component for adding/editing dictionary entries
 - December 2024: **READER UI REDESIGN v1**:
   - Redesigned reading screen layout with dedicated zones: header, content, footer
   - Timer now has its own dedicated space in header - text cannot overlap into timer area
