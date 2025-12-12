@@ -644,170 +644,159 @@ export default function ReadingScreen() {
     </Modal>
   );
 
+  const HEADER_HEIGHT = 52;
+  const FOOTER_HEIGHT = 56;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundRoot }]}>
-      <ReadingTimer 
-        visible={settings.showReadingTime || settings.focusMode} 
-        focusMode={settings.focusMode}
-        showTimer={settings.showReadingTime && !settings.focusMode}
-        onBreakSuggested={handleBreakSuggested}
-      />
+      {!settings.focusMode && (
+        <View style={[styles.headerZone, { paddingTop: insets.top, height: insets.top + HEADER_HEIGHT }]}>
+          <View style={styles.headerContent}>
+            <Pressable
+              style={styles.headerButton}
+              onPress={handleClose}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <View style={[styles.headerButtonInner, { backgroundColor: theme.backgroundSecondary }]}>
+                <Feather name="chevron-left" size={20} color={theme.text} />
+              </View>
+            </Pressable>
 
-      <View style={[styles.contentContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+            <View style={styles.timerContainer}>
+              <ReadingTimer 
+                visible={settings.showReadingTime} 
+                focusMode={false}
+                showTimer={settings.showReadingTime}
+                onBreakSuggested={handleBreakSuggested}
+              />
+            </View>
+
+            <Pressable
+              style={styles.headerButton}
+              onPress={openSettingsPanel}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <View style={[styles.headerButtonInner, { backgroundColor: theme.backgroundSecondary }]}>
+                <Feather name="sliders" size={18} color={theme.text} />
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {settings.focusMode && (
+        <View style={[styles.focusModeHeader, { paddingTop: insets.top, height: insets.top + HEADER_HEIGHT }]}>
+          {showFocusModeExit ? (
+            <Animated.View style={[styles.focusModeExitRow, focusExitStyle]}>
+              <Pressable
+                style={[styles.focusModeExitButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                onPress={exitFocusMode}
+              >
+                <Feather name="eye" size={16} color={theme.text} />
+                <ThemedText style={[styles.focusModeExitText, { color: theme.text }]}>
+                  Exit Focus
+                </ThemedText>
+              </Pressable>
+              <Pressable
+                style={[styles.focusModeBackButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                onPress={handleClose}
+              >
+                <Feather name="x" size={16} color={theme.text} />
+              </Pressable>
+            </Animated.View>
+          ) : (
+            <View style={styles.timerContainer}>
+              <ReadingTimer 
+                visible={settings.showReadingTime} 
+                focusMode={true}
+                showTimer={settings.showReadingTime}
+                onBreakSuggested={handleBreakSuggested}
+              />
+            </View>
+          )}
+        </View>
+      )}
+
+      <View style={styles.contentZone}>
         {renderReader()}
       </View>
 
       {!settings.focusMode && (
-        <>
-          <Pressable
-            style={[
-              styles.floatingBackButton,
-              { top: insets.top + Spacing.md },
-            ]}
-            onPress={handleClose}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <View style={[styles.floatingButtonInner, { backgroundColor: theme.backgroundRoot }]}>
-              <Feather name="chevron-left" size={20} color={theme.text} style={{ opacity: CONTROL_OPACITY }} />
+        <View style={[styles.footerZone, { paddingBottom: insets.bottom, height: insets.bottom + FOOTER_HEIGHT }]}>
+          <View style={styles.footerContent}>
+            <View style={styles.pageInfoContainer}>
+              <ThemedText style={[styles.pageIndicator, { color: theme.secondaryText }]}>
+                {currentPage + 1} / {totalPages}
+              </ThemedText>
+              {settings.showTimeEstimate && remainingTime > 0 && (
+                <ThemedText style={[styles.timeIndicator, { color: theme.secondaryText }]}>
+                  {remainingTime} min left
+                </ThemedText>
+              )}
             </View>
-          </Pressable>
 
-          <View
-            style={[
-              styles.floatingRightControls,
-              { top: insets.top + Spacing.md },
-            ]}
-          >
-            <Pressable
-              style={styles.floatingButton}
-              onPress={openSettingsPanel}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <View style={[styles.floatingButtonInner, { backgroundColor: theme.backgroundRoot }]}>
-                <Feather name="sliders" size={18} color={theme.text} style={{ opacity: CONTROL_OPACITY }} />
-              </View>
-            </Pressable>
-          </View>
-
-          <View
-            style={[
-              styles.floatingActionsContainer,
-              { bottom: insets.bottom + Spacing.xl + 20 },
-            ]}
-          >
-            <Animated.View style={[styles.quickActionsMenu, quickActionsStyle]}>
+            <View style={styles.footerActions}>
               <Pressable
-                style={[styles.quickActionItem, { backgroundColor: theme.backgroundSecondary }]}
+                style={[styles.footerActionButton, { backgroundColor: isBookmarked ? theme.accent + '20' : theme.backgroundSecondary }]}
                 onPress={handleBookmark}
               >
                 <Feather 
-                  name={isBookmarked ? "bookmark" : "bookmark"} 
+                  name="bookmark" 
                   size={18} 
                   color={isBookmarked ? theme.accent : theme.text} 
                 />
               </Pressable>
               <Pressable
-                style={[styles.quickActionItem, { backgroundColor: theme.backgroundSecondary }]}
+                style={[styles.footerActionButton, { backgroundColor: theme.backgroundSecondary }]}
                 onPress={handleAddNote}
               >
                 <Feather name="edit-3" size={18} color={theme.text} />
               </Pressable>
               <Pressable
-                style={[styles.quickActionItem, { backgroundColor: theme.backgroundSecondary }]}
+                style={[styles.footerActionButton, { backgroundColor: theme.backgroundSecondary }]}
                 onPress={handleSearch}
               >
                 <Feather name="search" size={18} color={theme.text} />
               </Pressable>
               <Pressable
-                style={[styles.quickActionItem, { backgroundColor: theme.backgroundSecondary }]}
+                style={[styles.footerActionButton, { backgroundColor: theme.backgroundSecondary }]}
                 onPress={handleTableOfContents}
               >
                 <Feather name="list" size={18} color={theme.text} />
               </Pressable>
-            </Animated.View>
+            </View>
+          </View>
 
-            <Pressable
+          <View style={styles.progressBarInFooter}>
+            <View
               style={[
-                styles.floatingActionButton,
-                { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
+                styles.progressFill,
+                { 
+                  backgroundColor: theme.accent, 
+                  width: `${progress}%`,
+                },
               ]}
-              onPress={toggleQuickActions}
-            >
-              <Feather 
-                name={showQuickActions ? "x" : "more-horizontal"} 
-                size={20} 
-                color={theme.text} 
-                style={{ opacity: showQuickActions ? CONTROL_OPACITY_ACTIVE : CONTROL_OPACITY }} 
-              />
-            </Pressable>
+            />
           </View>
-
-          <View
-            style={[
-              styles.bottomInfoBar,
-              { 
-                bottom: insets.bottom + Spacing.sm,
-                paddingHorizontal: Spacing.xl,
-              },
-            ]}
-          >
-            <ThemedText style={[styles.pageIndicator, { color: theme.secondaryText, opacity: CONTROL_OPACITY }]}>
-              {currentPage + 1} / {totalPages}
-            </ThemedText>
-            {settings.showTimeEstimate && remainingTime > 0 && (
-              <ThemedText style={[styles.timeIndicator, { color: theme.secondaryText, opacity: CONTROL_OPACITY }]}>
-                {remainingTime} min
-              </ThemedText>
-            )}
-          </View>
-        </>
-      )}
-
-      {settings.focusMode && showFocusModeExit && (
-        <Animated.View
-          style={[
-            styles.focusModeExitContainer,
-            { top: insets.top + Spacing.md },
-            focusExitStyle,
-          ]}
-        >
-          <Pressable
-            style={[styles.focusModeExitButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
-            onPress={exitFocusMode}
-          >
-            <Feather name="eye" size={16} color={theme.text} />
-            <ThemedText style={[styles.focusModeExitText, { color: theme.text }]}>
-              Exit Focus
-            </ThemedText>
-          </Pressable>
-          <Pressable
-            style={[styles.focusModeBackButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
-            onPress={handleClose}
-          >
-            <Feather name="x" size={16} color={theme.text} />
-          </Pressable>
-        </Animated.View>
-      )}
-
-      <View
-        style={[
-          styles.progressBarContainer,
-          { bottom: 0 },
-        ]}
-      >
-        <View style={[styles.progressBar, { backgroundColor: 'transparent' }]}>
-          <View
-            style={[
-              styles.progressFill,
-              { 
-                backgroundColor: theme.accent, 
-                width: `${progress}%`,
-                opacity: 0.6,
-              },
-            ]}
-          />
         </View>
-      </View>
+      )}
+
+      {settings.focusMode && (
+        <View style={[styles.focusModeFooter, { paddingBottom: insets.bottom, height: insets.bottom + 20 }]}>
+          <View style={styles.progressBarInFooter}>
+            <View
+              style={[
+                styles.progressFill,
+                { 
+                  backgroundColor: theme.accent, 
+                  width: `${progress}%`,
+                  opacity: 0.6,
+                },
+              ]}
+            />
+          </View>
+        </View>
+      )}
 
       {renderSettingsPanel()}
 
@@ -854,99 +843,96 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  contentContainer: {
-    flex: 1,
+  headerZone: {
     width: "100%",
+    zIndex: 10,
   },
-  floatingBackButton: {
-    position: "absolute",
-    left: Spacing.md,
-    zIndex: 100,
-  },
-  floatingRightControls: {
-    position: "absolute",
-    right: Spacing.md,
-    zIndex: 100,
+  headerContent: {
+    flex: 1,
     flexDirection: "row",
-    gap: Spacing.sm,
-  },
-  floatingButton: {
-    marginLeft: Spacing.xs,
-  },
-  floatingButtonInner: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.md,
   },
-  floatingActionsContainer: {
-    position: "absolute",
-    right: Spacing.lg,
-    zIndex: 100,
-    alignItems: "flex-end",
-  },
-  floatingActionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  quickActionsMenu: {
-    marginBottom: Spacing.sm,
-    gap: Spacing.xs,
-  },
-  quickActionItem: {
+  headerButton: {},
+  headerButtonInner: {
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
   },
-  bottomInfoBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
+  timerContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: Spacing.sm,
+  },
+  focusModeHeader: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  focusModeExitRow: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
+  contentZone: {
+    flex: 1,
+    width: "100%",
+  },
+  footerZone: {
+    width: "100%",
+    zIndex: 10,
+  },
+  footerContent: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+  },
+  pageInfoContainer: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+  },
+  footerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  footerActionButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: "center",
     alignItems: "center",
   },
+  progressBarInFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: PROGRESS_BAR_HEIGHT,
+    backgroundColor: "rgba(128, 128, 128, 0.2)",
+  },
+  focusModeFooter: {
+    width: "100%",
+    zIndex: 10,
+  },
   pageIndicator: {
-    fontSize: 11,
-    fontWeight: "500",
-    letterSpacing: 0.5,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.3,
   },
   timeIndicator: {
     fontSize: 11,
     fontWeight: "500",
-    letterSpacing: 0.5,
-  },
-  progressBarContainer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    height: PROGRESS_BAR_HEIGHT,
-  },
-  progressBar: {
-    flex: 1,
-    overflow: "hidden",
+    letterSpacing: 0.3,
+    marginTop: 2,
   },
   progressFill: {
     height: "100%",

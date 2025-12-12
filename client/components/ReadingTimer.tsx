@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, Pressable } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withRepeat,
   withSequence,
-  interpolate,
   Easing,
 } from "react-native-reanimated";
 import { Feather } from "@expo/vector-icons";
@@ -31,23 +29,13 @@ export function ReadingTimer({
   showTimer = true,
 }: ReadingTimerProps) {
   const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [showBreakReminder, setShowBreakReminder] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const opacity = useSharedValue(0);
   const pulseScale = useSharedValue(1);
   const breakReminderOpacity = useSharedValue(0);
-
-  useEffect(() => {
-    if (visible) {
-      opacity.value = withTiming(1, { duration: Motion.duration.normal });
-    } else {
-      opacity.value = withTiming(0, { duration: Motion.duration.fast });
-    }
-  }, [visible]);
 
   useEffect(() => {
     if (!isPaused) {
@@ -106,46 +94,30 @@ export function ReadingTimer({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
-  const animatedContainerStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      {
-        translateY: interpolate(opacity.value, [0, 1], [20, 0]),
-      },
-    ],
-  }));
-
   const animatedPulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
   }));
 
   const breakReminderStyle = useAnimatedStyle(() => ({
     opacity: breakReminderOpacity.value,
-    transform: [
-      {
-        translateY: interpolate(breakReminderOpacity.value, [0, 1], [-20, 0]),
-      },
-    ],
   }));
 
-  if (!visible) return null;
+  if (!visible || !showTimer) return null;
 
   return (
-    <Animated.View style={[styles.container, { paddingTop: insets.top + 8 }, animatedContainerStyle]}>
-      {showTimer && (
-        <Animated.View style={[styles.timerBadge, animatedPulseStyle, { backgroundColor: focusMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(0, 0, 0, 0.05)' }]}>
-          <Pressable onPress={togglePause} style={styles.timerContent}>
-            <Feather
-              name={isPaused ? "play" : "clock"}
-              size={14}
-              color={theme.accent}
-            />
-            <ThemedText style={[styles.timerText, { color: theme.accent }]}>
-              {formatTime(elapsedTime)}
-            </ThemedText>
-          </Pressable>
-        </Animated.View>
-      )}
+    <View style={styles.container}>
+      <Animated.View style={[styles.timerBadge, animatedPulseStyle, { backgroundColor: focusMode ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)' }]}>
+        <Pressable onPress={togglePause} style={styles.timerContent}>
+          <Feather
+            name={isPaused ? "play" : "clock"}
+            size={14}
+            color={theme.accent}
+          />
+          <ThemedText style={[styles.timerText, { color: theme.accent }]} numberOfLines={1}>
+            {formatTime(elapsedTime)}
+          </ThemedText>
+        </Pressable>
+      </Animated.View>
 
       {showBreakReminder && (
         <Animated.View style={[styles.breakReminder, breakReminderStyle]}>
@@ -169,28 +141,26 @@ export function ReadingTimer({
           </GlassCard>
         </Animated.View>
       )}
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
     alignItems: "center",
-    zIndex: 50,
+    justifyContent: "center",
+    minHeight: 32,
   },
   timerBadge: {
-    backgroundColor: "rgba(99, 102, 241, 0.1)",
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
+    maxWidth: 120,
   },
   timerContent: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
   },
   timerText: {
@@ -200,9 +170,10 @@ const styles = StyleSheet.create({
   },
   breakReminder: {
     position: "absolute",
-    top: Spacing["3xl"],
+    top: 50,
     left: Spacing.lg,
     right: Spacing.lg,
+    zIndex: 100,
   },
   breakCard: {
     padding: 0,

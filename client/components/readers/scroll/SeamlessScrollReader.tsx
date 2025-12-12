@@ -16,7 +16,6 @@ import Animated, {
   scrollTo,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BaseReaderProps, UnifiedScrollReaderRef } from "./types";
 import { renderBionicWord, createTextStyle } from "./utils";
 
@@ -34,7 +33,6 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
     },
     ref
   ) => {
-    const insets = useSafeAreaInsets();
     const animatedScrollViewRef = useAnimatedRef<Animated.ScrollView>();
 
     const [contentHeight, setContentHeight] = useState(0);
@@ -45,8 +43,8 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
     const onReadyCalledRef = useRef(false);
 
     const lineHeight = settings.fontSize * settings.lineSpacing;
-    const paddingTop = insets.top + 60;
-    const paddingBottom = insets.bottom + 60 + progressBarHeight;
+    const paddingTop = 16;
+    const paddingBottom = 16 + progressBarHeight;
 
     const normalizedContent = useMemo(() => {
       if (!content || content.length === 0) return "";

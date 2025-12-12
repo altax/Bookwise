@@ -84,8 +84,8 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
     const scrollAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const lineHeight = settings.fontSize * settings.lineSpacing;
-    const paddingTop = insets.top + 60;
-    const paddingBottom = insets.bottom + 60 + progressBarHeight;
+    const paddingTop = 16;
+    const paddingBottom = 16 + progressBarHeight;
 
     const autoScrollSpeed = Math.max(5, Math.min(settings.autoScrollSpeed || 50, 200));
 
