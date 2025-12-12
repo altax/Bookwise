@@ -128,6 +128,16 @@ server/
 4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
+- December 2024: **READER UI REDESIGN v1**:
+  - Redesigned reading screen layout with dedicated zones: header, content, footer
+  - Timer now has its own dedicated space in header - text cannot overlap into timer area
+  - All control buttons moved to footer zone outside the text area
+  - Text content has its own dedicated space with no UI overlapping
+  - Back button and settings button in header, action buttons (bookmark, notes, search, TOC) in footer
+  - Page info and remaining time shown in footer left side
+  - Progress bar integrated into footer
+  - Focus mode simplified with clean header/footer zones
+  - Scroll readers updated with reduced padding since layout managed by parent
 - December 2024: **KARAOKE MODE IMPROVEMENTS v3**:
   - Fixed long line rendering - increased line spacing to prevent overlapping when text wraps
   - Added rewind slider at bottom for quick navigation to any line
