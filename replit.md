@@ -36,6 +36,16 @@ client/
     - ReadingTimer.tsx     # Focus mode timer
     - NoteModal.tsx        # Note annotation modal
     - SearchModal.tsx      # In-text search
+    readers/               # Book reader components
+      - EpubReader.tsx     # EPUB display (uses epubjs)
+      - PdfReader.tsx      # PDF display
+      - UnifiedScrollReader.tsx  # Wrapper for scroll modes
+      scroll/              # Scroll mode implementations
+        - types.ts         # Shared types
+        - utils.ts         # Shared utilities
+        - SeamlessScrollReader.tsx  # Manual scrolling
+        - AutoScrollReader.tsx      # Auto-scroll mode
+        - KaraokeReader.tsx         # Karaoke mode
   constants/
     - theme.ts             # Design tokens, colors, typography
   contexts/
