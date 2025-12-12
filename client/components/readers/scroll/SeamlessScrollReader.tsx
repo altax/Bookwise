@@ -138,13 +138,9 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
     );
 
     const tapGesture = Gesture.Tap()
-      .onEnd((event) => {
-        const screenWidth = viewportHeight > 0 ? viewportHeight : 400;
-        const tapX = event.x;
-        if (tapX < screenWidth * 0.25) {
-          if (onTap) {
-            runOnJS(onTap)();
-          }
+      .onEnd(() => {
+        if (onTap) {
+          runOnJS(onTap)();
         }
       })
       .runOnJS(true);

@@ -373,10 +373,10 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
       .onEnd((event) => {
         const screenWidth = screenDimensions.width;
         const tapX = event.x;
-        if (tapX < screenWidth * 0.25) {
-          runOnJS(handleLeftTap)();
-        } else if (tapX > screenWidth * 0.75) {
+        if (tapX > screenWidth * 0.75) {
           runOnJS(toggleAutoScroll)();
+        } else if (onTap) {
+          runOnJS(handleLeftTap)();
         }
       })
       .runOnJS(true);

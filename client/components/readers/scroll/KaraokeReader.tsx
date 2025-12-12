@@ -396,17 +396,17 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
         const screenWidth = screenDimensions.width;
         const tapX = event.x;
 
-        if (tapX < screenWidth * 0.25) {
-          if (onTap) {
-            runOnJS(onTap)();
-          }
-        } else if (tapX < screenWidth * 0.5) {
+        if (tapX < screenWidth * 0.33) {
           runOnJS(handleKaraokeBack)();
-        } else {
+        } else if (tapX > screenWidth * 0.66) {
           if (karaokeAutoAdvance) {
             runOnJS(toggleAutoAdvance)();
           } else {
             runOnJS(handleKaraokeAdvance)();
+          }
+        } else {
+          if (onTap) {
+            runOnJS(onTap)();
           }
         }
       })

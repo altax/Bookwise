@@ -21,8 +21,11 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  withSpring,
   interpolate,
   Extrapolation,
+  FadeIn,
+  FadeOut,
 } from "react-native-reanimated";
 
 import { Spacing, Fonts, Motion, ReadingDefaults, ScrollModes, ScrollMode, AutoScrollDefaults, ThemeMode } from "@/constants/theme";
@@ -43,7 +46,9 @@ type ReadingRouteProp = RouteProp<RootStackParamList, "Reading">;
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const PROGRESS_BAR_HEIGHT = 30;
+const PROGRESS_BAR_HEIGHT = 2;
+const CONTROL_OPACITY = 0.5;
+const CONTROL_OPACITY_ACTIVE = 0.9;
 
 const themeOptions: { mode: ThemeMode; label: string; bgColor: string }[] = [
   { mode: "light", label: "Day", bgColor: "#FAFAFA" },
@@ -53,6 +58,8 @@ const themeOptions: { mode: ThemeMode; label: string; bgColor: string }[] = [
   { mode: "midnight", label: "AMOLED", bgColor: "#000000" },
   { mode: "forest", label: "Forest", bgColor: "#0F1A14" },
 ];
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function ReadingScreen() {
   const insets = useSafeAreaInsets();
@@ -80,13 +87,14 @@ export default function ReadingScreen() {
   const [content, setContent] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [showUI, setShowUI] = useState(false);
   const [currentPage, setCurrentPage] = useState(book.currentPage || 0);
   const [totalPages, setTotalPages] = useState(book.totalPages || 1);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [showFocusModeExit, setShowFocusModeExit] = useState(false);
   const [selectedText, setSelectedText] = useState("");
   const [wordCount, setWordCount] = useState(0);
   const [estimatedReadingTime, setEstimatedReadingTime] = useState(0);
@@ -97,8 +105,10 @@ export default function ReadingScreen() {
   const readerRef = useRef<UnifiedScrollReaderRef>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
 
-  const uiOpacity = useSharedValue(0);
   const settingsPanelTranslate = useSharedValue(SCREEN_HEIGHT);
+  const quickActionsScale = useSharedValue(0);
+  const focusExitOpacity = useSharedValue(0);
+  const focusExitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadBookContent();
@@ -201,33 +211,12 @@ export default function ReadingScreen() {
     }
   }, [settings.scrollMode]);
 
-  const toggleUI = useCallback(() => {
-    const newShowUI = !showUI;
-    setShowUI(newShowUI);
-    
-    if (newShowUI) {
-      pauseAutoScrollIfPlaying();
-    }
-    
-    if (settings.animationsEnabled) {
-      uiOpacity.value = withTiming(newShowUI ? 1 : 0, { 
-        duration: Motion.duration.fast 
-      });
-    } else {
-      uiOpacity.value = newShowUI ? 1 : 0;
-    }
-    
-    triggerHaptic();
-  }, [showUI, settings.animationsEnabled, triggerHaptic, pauseAutoScrollIfPlaying]);
-
   const openSettingsPanel = useCallback(() => {
     pauseAutoScrollIfPlaying();
-    setShowUI(true);
-    uiOpacity.value = withTiming(1, { duration: Motion.duration.fast });
     setShowSettingsPanel(true);
-    settingsPanelTranslate.value = withTiming(0, { duration: 300 });
+    settingsPanelTranslate.value = withSpring(0, { damping: 20, stiffness: 200 });
     triggerHaptic();
-  }, [settingsPanelTranslate, triggerHaptic, uiOpacity, pauseAutoScrollIfPlaying]);
+  }, [settingsPanelTranslate, triggerHaptic, pauseAutoScrollIfPlaying]);
 
   const closeSettingsPanel = useCallback(() => {
     settingsPanelTranslate.value = withTiming(SCREEN_HEIGHT, { duration: 250 });
@@ -237,6 +226,40 @@ export default function ReadingScreen() {
     }, 250);
     triggerHaptic();
   }, [settingsPanelTranslate, triggerHaptic, resumeAutoScrollIfWasPlaying]);
+
+  const toggleQuickActions = useCallback(() => {
+    const newState = !showQuickActions;
+    setShowQuickActions(newState);
+    quickActionsScale.value = withSpring(newState ? 1 : 0, { damping: 15, stiffness: 200 });
+    triggerHaptic();
+  }, [showQuickActions, quickActionsScale, triggerHaptic]);
+
+  const handleFocusModeTap = useCallback(() => {
+    if (!settings.focusMode) return;
+    
+    if (focusExitTimeoutRef.current) {
+      clearTimeout(focusExitTimeoutRef.current);
+    }
+    
+    setShowFocusModeExit(true);
+    focusExitOpacity.value = withTiming(1, { duration: 200 });
+    triggerHaptic();
+    
+    focusExitTimeoutRef.current = setTimeout(() => {
+      focusExitOpacity.value = withTiming(0, { duration: 300 });
+      setTimeout(() => setShowFocusModeExit(false), 300);
+    }, 3000);
+  }, [settings.focusMode, focusExitOpacity, triggerHaptic]);
+
+  const exitFocusMode = useCallback(() => {
+    if (focusExitTimeoutRef.current) {
+      clearTimeout(focusExitTimeoutRef.current);
+    }
+    updateSettings({ focusMode: false });
+    setShowFocusModeExit(false);
+    focusExitOpacity.value = 0;
+    triggerHaptic(Haptics.ImpactFeedbackStyle.Medium);
+  }, [updateSettings, focusExitOpacity, triggerHaptic]);
 
   const handleClose = () => {
     updateBookProgress(activeBook.id, currentPage, totalPages);
@@ -260,6 +283,8 @@ export default function ReadingScreen() {
   const handleAddNote = () => {
     setSelectedText("");
     setShowNoteModal(true);
+    setShowQuickActions(false);
+    quickActionsScale.value = withTiming(0);
   };
 
   const handleSaveNote = async (noteContent: string) => {
@@ -274,6 +299,8 @@ export default function ReadingScreen() {
 
   const handleSearch = () => {
     setShowSearchModal(true);
+    setShowQuickActions(false);
+    quickActionsScale.value = withTiming(0);
   };
 
   const handleSearchResultSelect = (index: number) => {
@@ -295,6 +322,8 @@ export default function ReadingScreen() {
       { title: "Chapter 2", order: 3 },
       { title: "Chapter 3", order: 6 },
     ];
+    setShowQuickActions(false);
+    quickActionsScale.value = withTiming(0);
     navigation.navigate("TableOfContents", {
       book: activeBook,
       chapters: chapters.map((c, i) => ({ title: c.title, page: 'order' in c ? c.order : i })),
@@ -325,38 +354,17 @@ export default function ReadingScreen() {
   const progress = scrollProgress * 100;
   const remainingTime = Math.ceil((1 - scrollProgress) * estimatedReadingTime);
 
-  const headerAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: uiOpacity.value,
-    transform: [
-      {
-        translateY: interpolate(
-          uiOpacity.value,
-          [0, 1],
-          [-20, 0],
-          Extrapolation.CLAMP
-        ),
-      },
-    ],
-    pointerEvents: uiOpacity.value > 0.5 ? "auto" : "none",
-  }));
-
-  const footerAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: uiOpacity.value,
-    transform: [
-      {
-        translateY: interpolate(
-          uiOpacity.value,
-          [0, 1],
-          [20, 0],
-          Extrapolation.CLAMP
-        ),
-      },
-    ],
-    pointerEvents: uiOpacity.value > 0.5 ? "auto" : "none",
-  }));
-
   const settingsPanelStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: settingsPanelTranslate.value }],
+  }));
+
+  const quickActionsStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: quickActionsScale.value }],
+    opacity: quickActionsScale.value,
+  }));
+
+  const focusExitStyle = useAnimatedStyle(() => ({
+    opacity: focusExitOpacity.value,
   }));
 
   const getFontFamily = () => {
@@ -421,7 +429,7 @@ export default function ReadingScreen() {
         content={content}
         scrollMode={settings.scrollMode}
         onScrollProgress={handleScrollProgress}
-        onTap={toggleUI}
+        onTap={settings.focusMode ? handleFocusModeTap : undefined}
         onError={(err) => console.error("Reader error:", err)}
         theme={{ 
           text: theme.text, 
@@ -443,7 +451,7 @@ export default function ReadingScreen() {
           karaokeAutoAdvanceSpeed: settings.karaokeAutoAdvanceSpeed,
           karaokeUpcomingOpacity: settings.karaokeUpcomingOpacity,
         }}
-        progressBarHeight={settings.showReadingProgress ? PROGRESS_BAR_HEIGHT : 0}
+        progressBarHeight={PROGRESS_BAR_HEIGHT + insets.bottom}
         pauseAutoScroll={pauseAutoScrollIfPlaying}
       />
     );
@@ -619,7 +627,7 @@ export default function ReadingScreen() {
                 <View style={styles.toggleRow}>
                   <View>
                     <ThemedText style={[styles.settingsLabel, { color: theme.text }]}>Focus Mode</ThemedText>
-                    <ThemedText style={[styles.settingsHint, { color: theme.secondaryText }]}>Minimal UI, hides reading time</ThemedText>
+                    <ThemedText style={[styles.settingsHint, { color: theme.secondaryText }]}>Hide all controls</ThemedText>
                   </View>
                   <Switch
                     value={settings.focusMode}
@@ -650,126 +658,156 @@ export default function ReadingScreen() {
       </View>
 
       {!settings.focusMode && (
-        <Animated.View
-          style={[
-            styles.header,
-            { paddingTop: insets.top },
-            headerAnimatedStyle,
-          ]}
-        >
-          <GlassCard 
-            intensity="medium" 
-            style={styles.headerCard}
-            animatedOpacity={uiOpacity}
-            noPadding
+        <>
+          <Pressable
+            style={[
+              styles.floatingBackButton,
+              { top: insets.top + Spacing.md },
+            ]}
+            onPress={handleClose}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <View style={styles.headerContent}>
-              <Pressable onPress={handleClose} style={styles.headerButton}>
-                <Feather name="chevron-left" size={24} color={theme.text} />
-              </Pressable>
-              <View style={styles.headerTitleContainer}>
-                <ThemedText style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
-                  {book.title}
-                </ThemedText>
-                {settings.showTimeEstimate && remainingTime > 0 && (
-                  <ThemedText style={[styles.headerSubtitle, { color: theme.secondaryText }]}>
-                    {remainingTime} min left
-                  </ThemedText>
-                )}
-              </View>
-              <View style={styles.headerActions}>
-                <Pressable onPress={handleSearch} style={styles.headerButton}>
-                  <Feather name="search" size={20} color={theme.text} />
-                </Pressable>
-                <BookmarkRibbon 
-                  isBookmarked={isBookmarked} 
-                  onPress={handleBookmark}
-                  size={22}
-                />
-                <Pressable onPress={handleTableOfContents} style={styles.headerButton}>
-                  <Feather name="list" size={20} color={theme.text} />
-                </Pressable>
-              </View>
+            <View style={[styles.floatingButtonInner, { backgroundColor: theme.backgroundRoot }]}>
+              <Feather name="chevron-left" size={20} color={theme.text} style={{ opacity: CONTROL_OPACITY }} />
             </View>
-          </GlassCard>
-        </Animated.View>
-      )}
+          </Pressable>
 
-      {settings.showReadingProgress && (
-        <View
-          style={[
-            styles.progressContainer,
-            { 
-              bottom: 0,
-              paddingBottom: insets.bottom + Spacing.sm,
-              backgroundColor: theme.backgroundRoot,
-            },
-          ]}
-        >
-          <View style={[styles.progressBar, { backgroundColor: theme.backgroundSecondary }]}>
-            <Animated.View
-              style={[
-                styles.progressFill,
-                { 
-                  backgroundColor: theme.progressBar, 
-                  width: `${progress}%`,
-                },
-              ]}
-            />
+          <View
+            style={[
+              styles.floatingRightControls,
+              { top: insets.top + Spacing.md },
+            ]}
+          >
+            <Pressable
+              style={styles.floatingButton}
+              onPress={openSettingsPanel}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <View style={[styles.floatingButtonInner, { backgroundColor: theme.backgroundRoot }]}>
+                <Feather name="sliders" size={18} color={theme.text} style={{ opacity: CONTROL_OPACITY }} />
+              </View>
+            </Pressable>
           </View>
-          <ThemedText style={[styles.progressText, { color: theme.secondaryText }]}>
-            {Math.round(progress)}%
-          </ThemedText>
-        </View>
+
+          <View
+            style={[
+              styles.floatingActionsContainer,
+              { bottom: insets.bottom + Spacing.xl + 20 },
+            ]}
+          >
+            <Animated.View style={[styles.quickActionsMenu, quickActionsStyle]}>
+              <Pressable
+                style={[styles.quickActionItem, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={handleBookmark}
+              >
+                <Feather 
+                  name={isBookmarked ? "bookmark" : "bookmark"} 
+                  size={18} 
+                  color={isBookmarked ? theme.accent : theme.text} 
+                />
+              </Pressable>
+              <Pressable
+                style={[styles.quickActionItem, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={handleAddNote}
+              >
+                <Feather name="edit-3" size={18} color={theme.text} />
+              </Pressable>
+              <Pressable
+                style={[styles.quickActionItem, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={handleSearch}
+              >
+                <Feather name="search" size={18} color={theme.text} />
+              </Pressable>
+              <Pressable
+                style={[styles.quickActionItem, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={handleTableOfContents}
+              >
+                <Feather name="list" size={18} color={theme.text} />
+              </Pressable>
+            </Animated.View>
+
+            <Pressable
+              style={[
+                styles.floatingActionButton,
+                { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
+              ]}
+              onPress={toggleQuickActions}
+            >
+              <Feather 
+                name={showQuickActions ? "x" : "more-horizontal"} 
+                size={20} 
+                color={theme.text} 
+                style={{ opacity: showQuickActions ? CONTROL_OPACITY_ACTIVE : CONTROL_OPACITY }} 
+              />
+            </Pressable>
+          </View>
+
+          <View
+            style={[
+              styles.bottomInfoBar,
+              { 
+                bottom: insets.bottom + Spacing.sm,
+                paddingHorizontal: Spacing.xl,
+              },
+            ]}
+          >
+            <ThemedText style={[styles.pageIndicator, { color: theme.secondaryText, opacity: CONTROL_OPACITY }]}>
+              {currentPage + 1} / {totalPages}
+            </ThemedText>
+            {settings.showTimeEstimate && remainingTime > 0 && (
+              <ThemedText style={[styles.timeIndicator, { color: theme.secondaryText, opacity: CONTROL_OPACITY }]}>
+                {remainingTime} min
+              </ThemedText>
+            )}
+          </View>
+        </>
       )}
 
-      {!settings.focusMode && (
+      {settings.focusMode && showFocusModeExit && (
         <Animated.View
           style={[
-            styles.footer,
-            { paddingBottom: insets.bottom + Spacing["4xl"] },
-            footerAnimatedStyle,
+            styles.focusModeExitContainer,
+            { top: insets.top + Spacing.md },
+            focusExitStyle,
           ]}
         >
-          <GlassCard 
-            intensity="medium" 
-            style={styles.footerCard}
-            animatedOpacity={uiOpacity}
-            noPadding
+          <Pressable
+            style={[styles.focusModeExitButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+            onPress={exitFocusMode}
           >
-            <View style={styles.footerContent}>
-              <Pressable onPress={handleAddNote} style={styles.footerButton}>
-                <Feather name="edit-3" size={20} color={theme.text} />
-                <ThemedText style={[styles.footerButtonText, { color: theme.text }]}>
-                  Note
-                </ThemedText>
-              </Pressable>
-              <View style={styles.footerDivider} />
-              <View style={styles.pageInfoContainer}>
-                <ThemedText style={[styles.pageInfo, { color: theme.text }]}>
-                  {currentPage + 1}
-                </ThemedText>
-                <ThemedText style={[styles.pageInfoDivider, { color: theme.secondaryText }]}>
-                  /
-                </ThemedText>
-                <ThemedText style={[styles.pageInfo, { color: theme.secondaryText }]}>
-                  {totalPages}
-                </ThemedText>
-              </View>
-              <View style={styles.footerDivider} />
-              <Pressable 
-                onPress={openSettingsPanel} 
-                style={styles.footerButton}
-              >
-                <Feather name="sliders" size={20} color={theme.text} />
-                <ThemedText style={[styles.footerButtonText, { color: theme.text }]}>
-                  Settings
-                </ThemedText>
-              </Pressable>
-            </View>
-          </GlassCard>
+            <Feather name="eye" size={16} color={theme.text} />
+            <ThemedText style={[styles.focusModeExitText, { color: theme.text }]}>
+              Exit Focus
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            style={[styles.focusModeBackButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+            onPress={handleClose}
+          >
+            <Feather name="x" size={16} color={theme.text} />
+          </Pressable>
         </Animated.View>
       )}
+
+      <View
+        style={[
+          styles.progressBarContainer,
+          { bottom: 0 },
+        ]}
+      >
+        <View style={[styles.progressBar, { backgroundColor: 'transparent' }]}>
+          <View
+            style={[
+              styles.progressFill,
+              { 
+                backgroundColor: theme.accent, 
+                width: `${progress}%`,
+                opacity: 0.6,
+              },
+            ]}
+          />
+        </View>
+      </View>
 
       {renderSettingsPanel()}
 
@@ -820,115 +858,98 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
   },
-  header: {
+  floatingBackButton: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+    left: Spacing.md,
     zIndex: 100,
-    paddingHorizontal: Spacing.md,
   },
-  headerCard: {
-    marginTop: Spacing.sm,
-  },
-  headerContent: {
+  floatingRightControls: {
+    position: "absolute",
+    right: Spacing.md,
+    zIndex: 100,
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
   },
-  headerButton: {
-    width: 44,
-    height: 44,
+  floatingButton: {
+    marginLeft: Spacing.xs,
+  },
+  floatingButtonInner: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  headerTitleContainer: {
-    flex: 1,
+  floatingActionsContainer: {
+    position: "absolute",
+    right: Spacing.lg,
+    zIndex: 100,
+    alignItems: "flex-end",
+  },
+  floatingActionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
+  quickActionsMenu: {
+    marginBottom: Spacing.sm,
+    gap: Spacing.xs,
   },
-  headerSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: "row",
+  quickActionItem: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  progressContainer: {
+  bottomInfoBar: {
     position: "absolute",
     left: 0,
     right: 0,
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.sm,
-    gap: Spacing.md,
+  },
+  pageIndicator: {
+    fontSize: 11,
+    fontWeight: "500",
+    letterSpacing: 0.5,
+  },
+  timeIndicator: {
+    fontSize: 11,
+    fontWeight: "500",
+    letterSpacing: 0.5,
+  },
+  progressBarContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: PROGRESS_BAR_HEIGHT,
   },
   progressBar: {
     flex: 1,
-    height: 3,
-    borderRadius: 2,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: 12,
-    fontWeight: "500",
-    minWidth: 36,
-    textAlign: "right",
-  },
-  footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: Spacing.md,
-  },
-  footerCard: {
-    marginBottom: Spacing.sm,
-  },
-  footerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingVertical: Spacing.sm,
-  },
-  footerButton: {
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-  },
-  footerButtonText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  footerDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: "rgba(128, 128, 128, 0.2)",
-  },
-  pageInfoContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  pageInfo: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  pageInfoDivider: {
-    fontSize: 14,
   },
   settingsOverlay: {
     flex: 1,
@@ -1053,5 +1074,46 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     width: 32,
     textAlign: "right",
+  },
+  focusModeExitContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: Spacing.sm,
+    zIndex: 100,
+  },
+  focusModeExitButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  focusModeExitText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  focusModeBackButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });
