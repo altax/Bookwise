@@ -29,6 +29,7 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
       content,
       onScrollProgress,
       onTap,
+      onReady,
       theme,
       settings,
       initialPosition = 0,

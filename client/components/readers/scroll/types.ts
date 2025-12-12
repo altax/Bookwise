@@ -23,6 +23,7 @@ export interface BaseReaderProps {
   onScrollProgress?: (progress: number, currentPosition: number, totalHeight: number) => void;
   onError?: (error: string) => void;
   onTap?: () => void;
+  onReady?: () => void;
   theme: ReaderTheme;
   settings: ReaderSettings;
   initialPosition?: number;
@@ -41,6 +42,7 @@ export interface UnifiedScrollReaderProps extends BaseReaderProps {
   scrollMode: ScrollMode;
   onAutoScrollStateChange?: (isPlaying: boolean) => void;
   pauseAutoScroll?: () => void;
+  onReady?: () => void;
 }
 
 export interface UnifiedScrollReaderRef {

@@ -1,0 +1,47 @@
+
+В KaraokeReader компоненте есть свой внутренний индикатор загрузки — он рендерит Loading..., когда нет строк для отображения:
+const linesToRender = nonEmptyLines.length > 0 ? nonEmptyLines : karaokeLines;
+
+{ linesToRender.length > 0 ? (
+  /* отрисовка строк */
+) : (
+  <View style={styles.loadingContainer}>
+    <Text>Loading...</Text>
+  </View>
+)}
+
+karaokeLines вычисляются через generateLinesFromContent(content, lineHeight, 45) (useMemo). nonEmptyLines устанавливаются в useEffect, когда karaokeLines.length > 0 — и тогда setIsReady(true).
+Если по какой-то поводу оба массива пустые (nonEmptyLines.length === 0 и karaokeLines.length === 0), компонент показывает Loading... — это и выглядит как «загрузка вечно».
+
+Почему это происходит (возможные причины)
+content пустой — generateLinesFromContent сразу возвращает []. (например: парсинг epub/pdf не дал текста).
+
+karaokeLines не успевают появиться (race condition) — компонент рендерится до того, как content обновится.
+
+KaraokeReader не сообщает внешний контейнер (ReadingScreen) о готовности — ReadingScreen уже снимает глобальный isLoading, но KaraokeReader имеет свой локальный isReady и показывает внутренний лоадер независимо от ReadingScreen.
+Редкий вариант: содержимое есть, но generateLinesFromContent по каким-то причинам возвращает пустой массив (например, content содержит только невидимые символы или HTML, который очищается).
+Из проекта: ReadingScreen снимает isLoading в finally после парсинга. Но для UnifiedScrollReader (куда входит KaraokeReader) не передаётся callback onReady, как это сделано для PdfReader — поэтому внешний экран не отслеживает внутренний статус KaraokeReader. При этом сам KaraokeReader показывает «Loading...», пока не сгенерирует строки — отсюда «вечная загрузка».
+
+Рекомендации по исправлению (конкретные правки)
+Вариант A — самый прямой: передавать onReady из ReadingScreen в UnifiedScrollReader -> KaraokeReader
+В client/components/readers/scroll/types.ts добавить onReady?: () => void в интерфейс пропсов (например BaseReaderProps или UnifiedScrollReaderProps), чтобы зов внешнего компонента мог установить окончание загрузки.
+
+
+В client/components/readers/UnifiedScrollReader.tsx прокиньте onReady в commonProps и в KaraokeReader:э
+
+В client/components/readers/scroll/KaraokeReader.tsx — вызвать onReady когда компонент реально готов (там, где вы делаете setIsReady(true))
+
+Это гарантирует, что ReadingScreen сможет установить глобальный isLoading = false (или просто согласовать состояния).
+Примечание: если onReady вызывается из анимированных callback-ов или runOnJS, убедитесь, что вы не нарушаете порядок вызова — но в обычном useEffect это нормально.
+Вариант B — показывать явное сообщение об отсутствии текста (UX-fix)
+Если generateLinesFromContent вернул пустой массив потому что текста нет или он пустой, лучше показывать не «Loading...», а понятное сообщение:
+
+Вариант C — дополнительная отладка (быстро)
+Добавьте логирование в KaraokeReader чтобы увидеть причины:
+Это сразу покажет, приходит ли content в компонент
+
+Что рекомендую сделать сразу (порядок действий)
+Вставить простые console.log в KaraokeReader (content length, karaokeLines.length) — понять, получает ли компонент текст.
+Если content приходит и karaokeLines.length > 0, тогда проблема только в синхронизации — реализовать onReady (Вариант A).
+Если content пустой — нужно смотреть, почему BookParserService.parseEpub или чтение файла возвращают пустой parsedContent (парсер/код чтения/библиотека). В этом случае смотреть функцию loadBookContent и логировать результат парсинга.
+UX: заменить «Loading...» на более информативный текст, чтобы пользователь понимал причину.

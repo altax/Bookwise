@@ -103,6 +103,7 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
       content,
       onScrollProgress,
       onTap,
+      onReady,
       theme,
       settings,
       initialPosition = 0,
@@ -143,8 +144,9 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
         setKaraokeCurrentLine(0);
         karaokeAnimatedLine.value = 0;
         setIsReady(true);
+        onReady?.();
       }
-    }, [karaokeLines]);
+    }, [karaokeLines, onReady]);
 
     const handleKaraokeAdvance = useCallback(() => {
       const lines = karaokeLines.length > 0 ? karaokeLines : nonEmptyLines;
@@ -279,7 +281,9 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
               ))
             ) : (
               <View style={styles.loadingContainer}>
-                <Text style={[styles.loadingText, { color: theme.secondaryText }]}>Loading...</Text>
+                <Text style={[styles.loadingText, { color: theme.secondaryText }]}>
+                  {content && content.length > 0 ? "Preparing text..." : "No text content available"}
+                </Text>
               </View>
             )}
           </View>

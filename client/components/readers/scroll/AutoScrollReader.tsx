@@ -35,6 +35,7 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
       content,
       onScrollProgress,
       onTap,
+      onReady,
       theme,
       settings,
       initialPosition = 0,
