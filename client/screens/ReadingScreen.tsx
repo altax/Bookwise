@@ -9,6 +9,7 @@ import {
   ScrollView,
   Switch,
   Modal,
+  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -35,6 +36,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { NoteModal } from "@/components/NoteModal";
 import { SearchModal } from "@/components/SearchModal";
+import { WordModal } from "@/components/WordModal";
 import { GlassCard } from "@/components/GlassCard";
 import { BookmarkRibbon } from "@/components/BookmarkRibbon";
 import { ReadingTimer } from "@/components/ReadingTimer";
@@ -96,6 +98,9 @@ export default function ReadingScreen() {
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showFocusModeExit, setShowFocusModeExit] = useState(false);
   const [selectedText, setSelectedText] = useState("");
+  const [selectedWord, setSelectedWord] = useState("");
+  const [showWordModal, setShowWordModal] = useState(false);
+  const [dictionaryMode, setDictionaryMode] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [estimatedReadingTime, setEstimatedReadingTime] = useState(0);
   const [parsedBook, setParsedBook] = useState<ParsedBook | null>(null);
@@ -122,6 +127,16 @@ export default function ReadingScreen() {
       endReadingSession(book.id, Math.max(0, pagesRead), Math.max(0, wordsRead));
     };
   }, [book.fileUri]);
+
+  useEffect(() => {
+    if (contextBook && contextBook.id === book.id && contextBook.currentPage !== currentPage) {
+      setCurrentPage(contextBook.currentPage);
+      if (readerRef.current?.scrollToPosition && content.length > 0 && totalPages > 0) {
+        const charPosition = Math.floor((contextBook.currentPage / totalPages) * content.length);
+        readerRef.current.scrollToPosition(charPosition);
+      }
+    }
+  }, [contextBook?.currentPage, book.id, content.length, totalPages]);
 
   useEffect(() => {
     const hasBookmark = activeBook.bookmarks.some((b) => b.page === currentPage);
@@ -214,16 +229,14 @@ export default function ReadingScreen() {
   const openSettingsPanel = useCallback(() => {
     pauseAutoScrollIfPlaying();
     setShowSettingsPanel(true);
-    settingsPanelTranslate.value = withSpring(0, { damping: 20, stiffness: 200 });
+    settingsPanelTranslate.value = 0;
     triggerHaptic();
   }, [settingsPanelTranslate, triggerHaptic, pauseAutoScrollIfPlaying]);
 
   const closeSettingsPanel = useCallback(() => {
-    settingsPanelTranslate.value = withTiming(SCREEN_HEIGHT, { duration: 250 });
-    setTimeout(() => {
-      setShowSettingsPanel(false);
-      resumeAutoScrollIfWasPlaying();
-    }, 250);
+    settingsPanelTranslate.value = SCREEN_HEIGHT;
+    setShowSettingsPanel(false);
+    resumeAutoScrollIfWasPlaying();
     triggerHaptic();
   }, [settingsPanelTranslate, triggerHaptic, resumeAutoScrollIfWasPlaying]);
 
@@ -561,12 +574,13 @@ export default function ReadingScreen() {
                     style={{ 
                       fontSize: settings.fontSize, 
                       lineHeight: settings.fontSize * settings.lineSpacing,
+                      letterSpacing: settings.letterSpacing,
                       color: theme.text,
                       fontFamily: getFontFamily(),
                     }}
-                    numberOfLines={3}
+                    numberOfLines={2}
                   >
-                    The quick brown fox jumps over the lazy dog. This is a preview of your reading settings.
+                    The quick brown fox jumps over the lazy dog.
                   </ThemedText>
                 </View>
                 <View style={styles.compactControls}>
@@ -590,7 +604,7 @@ export default function ReadingScreen() {
                   <View style={styles.compactSliderRow}>
                     <View style={styles.compactLabelRow}>
                       <Feather name="align-justify" size={14} color={theme.secondaryText} />
-                      <ThemedText style={[styles.compactLabel, { color: theme.secondaryText }]}>Spacing</ThemedText>
+                      <ThemedText style={[styles.compactLabel, { color: theme.secondaryText }]}>Line</ThemedText>
                     </View>
                     <Slider
                       style={styles.compactSlider}
@@ -604,6 +618,24 @@ export default function ReadingScreen() {
                       thumbTintColor={theme.accent}
                     />
                     <ThemedText style={[styles.compactValue, { color: theme.text }]}>{settings.lineSpacing.toFixed(1)}</ThemedText>
+                  </View>
+                  <View style={styles.compactSliderRow}>
+                    <View style={styles.compactLabelRow}>
+                      <Feather name="minus" size={14} color={theme.secondaryText} />
+                      <ThemedText style={[styles.compactLabel, { color: theme.secondaryText }]}>Letter</ThemedText>
+                    </View>
+                    <Slider
+                      style={styles.compactSlider}
+                      minimumValue={-1}
+                      maximumValue={3}
+                      step={0.1}
+                      value={settings.letterSpacing}
+                      onValueChange={(value) => updateSettings({ letterSpacing: value })}
+                      minimumTrackTintColor={theme.accent}
+                      maximumTrackTintColor={theme.backgroundTertiary}
+                      thumbTintColor={theme.accent}
+                    />
+                    <ThemedText style={[styles.compactValue, { color: theme.text }]}>{settings.letterSpacing.toFixed(1)}</ThemedText>
                   </View>
                 </View>
               </View>
@@ -747,16 +779,23 @@ export default function ReadingScreen() {
                 />
               </Pressable>
               <Pressable
+                style={[styles.footerActionButton, { backgroundColor: dictionaryMode ? theme.accent + '20' : theme.backgroundSecondary }]}
+                onPress={() => {
+                  setDictionaryMode(!dictionaryMode);
+                  triggerHaptic();
+                }}
+              >
+                <Feather 
+                  name="book" 
+                  size={18} 
+                  color={dictionaryMode ? theme.accent : theme.text} 
+                />
+              </Pressable>
+              <Pressable
                 style={[styles.footerActionButton, { backgroundColor: theme.backgroundSecondary }]}
                 onPress={handleAddNote}
               >
                 <Feather name="edit-3" size={18} color={theme.text} />
-              </Pressable>
-              <Pressable
-                style={[styles.footerActionButton, { backgroundColor: theme.backgroundSecondary }]}
-                onPress={handleSearch}
-              >
-                <Feather name="search" size={18} color={theme.text} />
               </Pressable>
               <Pressable
                 style={[styles.footerActionButton, { backgroundColor: theme.backgroundSecondary }]}
@@ -815,6 +854,55 @@ export default function ReadingScreen() {
         onResultSelect={handleSearchResultSelect}
         theme={theme}
       />
+
+      <WordModal
+        visible={showWordModal}
+        onClose={() => {
+          setShowWordModal(false);
+          setSelectedWord("");
+        }}
+        word={selectedWord}
+        bookId={activeBook.id}
+        bookTitle={activeBook.title}
+        theme={theme}
+      />
+
+      {dictionaryMode && (
+        <View style={[styles.dictionaryModeContainer, { backgroundColor: theme.backgroundDefault, borderBottomColor: theme.border }]}>
+          <View style={styles.dictionaryModeHeader}>
+            <Feather name="book" size={16} color={theme.accent} />
+            <ThemedText style={[styles.dictionaryModeTitle, { color: theme.text }]}>
+              Add Word to Dictionary
+            </ThemedText>
+            <Pressable onPress={() => setDictionaryMode(false)} style={styles.dictionaryCloseBtn}>
+              <Feather name="x" size={20} color={theme.secondaryText} />
+            </Pressable>
+          </View>
+          <View style={styles.dictionaryInputRow}>
+            <TextInput
+              style={[styles.dictionaryInput, { backgroundColor: theme.backgroundSecondary, color: theme.text, borderColor: theme.border }]}
+              placeholder="Type a word..."
+              placeholderTextColor={theme.secondaryText}
+              value={selectedWord}
+              onChangeText={setSelectedWord}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Pressable
+              style={[styles.dictionaryAddBtn, { backgroundColor: selectedWord.trim() ? theme.accent : theme.backgroundTertiary }]}
+              onPress={() => {
+                if (selectedWord.trim()) {
+                  setShowWordModal(true);
+                  triggerHaptic();
+                }
+              }}
+              disabled={!selectedWord.trim()}
+            >
+              <Feather name="plus" size={20} color={selectedWord.trim() ? "#FFFFFF" : theme.secondaryText} />
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -939,13 +1027,13 @@ const styles = StyleSheet.create({
   },
   settingsOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    backgroundColor: "rgba(0, 0, 0, 0.15)",
     justifyContent: "flex-end",
   },
   settingsPanel: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: SCREEN_HEIGHT * 0.75,
+    maxHeight: SCREEN_HEIGHT * 0.45,
   },
   settingsHandle: {
     alignItems: "center",
@@ -1101,5 +1189,50 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 3,
+  },
+  dictionaryModeContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingTop: 50,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    zIndex: 100,
+  },
+  dictionaryModeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  dictionaryModeTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  dictionaryCloseBtn: {
+    padding: 4,
+  },
+  dictionaryInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  dictionaryInput: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    fontSize: 16,
+  },
+  dictionaryAddBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

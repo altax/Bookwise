@@ -12,13 +12,15 @@ import { queryClient } from "@/lib/query-client";
 import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ReadingProvider } from "@/contexts/ReadingContext";
+import { DictionaryProvider } from "@/contexts/DictionaryContext";
 
 export default function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ReadingProvider>
-          <SafeAreaProvider>
+          <DictionaryProvider>
+            <SafeAreaProvider>
             <GestureHandlerRootView style={styles.root}>
               <KeyboardProvider>
                 <NavigationContainer>
@@ -27,7 +29,8 @@ export default function App() {
                 <StatusBar style="auto" />
               </KeyboardProvider>
             </GestureHandlerRootView>
-          </SafeAreaProvider>
+            </SafeAreaProvider>
+          </DictionaryProvider>
         </ReadingProvider>
       </QueryClientProvider>
     </ErrorBoundary>

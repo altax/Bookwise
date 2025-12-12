@@ -143,6 +143,17 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
       })
       .runOnJS(true);
 
+    const CHUNK_SIZE = 5000;
+    
+    const contentChunks = useMemo(() => {
+      if (!normalizedContent) return [];
+      const chunks: string[] = [];
+      for (let i = 0; i < normalizedContent.length; i += CHUNK_SIZE) {
+        chunks.push(normalizedContent.slice(i, i + CHUNK_SIZE));
+      }
+      return chunks;
+    }, [normalizedContent]);
+
     const renderContent = () => {
       if (!isReady) {
         return (
@@ -156,11 +167,17 @@ export const SeamlessScrollReader = forwardRef<UnifiedScrollReaderRef, BaseReade
       }
 
       if (settings.bionicReading) {
-        const words = normalizedContent.split(/(\s+)/);
         return (
-          <Text style={[styles.contentText, textStyle]}>
-            {words.map((word, i) => renderBionicWord(word, i))}
-          </Text>
+          <>
+            {contentChunks.map((chunk, chunkIndex) => {
+              const words = chunk.split(/(\s+)/);
+              return (
+                <Text key={chunkIndex} style={[styles.contentText, textStyle]}>
+                  {words.map((word, i) => renderBionicWord(word, chunkIndex * 1000 + i))}
+                </Text>
+              );
+            })}
+          </>
         );
       }
 

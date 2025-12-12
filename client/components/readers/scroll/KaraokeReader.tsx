@@ -470,50 +470,49 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
           </View>
 
           {karaokeLines.length > 0 && (
-            <View style={[styles.progressSliderContainer, { bottom: 30 + progressBarHeight }]}>
-              <Pressable
-                style={[styles.controlButton, { backgroundColor: "rgba(0,0,0,0.5)" }]}
-                onPress={handleKaraokeBack}
-              >
-                <Feather name="chevron-left" size={20} color="#FFFFFF" />
-              </Pressable>
-              
-              <View style={styles.sliderWrapper}>
-                <Slider
-                  style={styles.progressSlider}
-                  minimumValue={0}
-                  maximumValue={Math.max(1, karaokeLines.length - 1)}
-                  value={karaokeCurrentLine}
-                  onValueChange={goToLine}
-                  minimumTrackTintColor={theme.accent || "#6366F1"}
-                  maximumTrackTintColor="rgba(255,255,255,0.3)"
-                  thumbTintColor={theme.accent || "#6366F1"}
-                />
-                <Text style={styles.progressText}>
+            <View style={styles.progressTopContainer}>
+              <View style={styles.progressRow}>
+                <Pressable
+                  style={[styles.controlButton, { backgroundColor: "rgba(0,0,0,0.5)" }]}
+                  onPress={handleKaraokeBack}
+                >
+                  <Feather name="chevron-left" size={18} color="#FFFFFF" />
+                </Pressable>
+                
+                <Text style={styles.progressTextTop}>
                   {karaokeCurrentLine + 1} / {karaokeLines.length}
                 </Text>
-              </View>
 
-              <Pressable
-                style={[styles.controlButton, { backgroundColor: "rgba(0,0,0,0.5)" }]}
-                onPress={karaokeAutoAdvance ? toggleAutoAdvance : handleKaraokeAdvance}
-              >
-                <Feather 
-                  name={karaokeAutoAdvance ? (isAutoAdvancing ? "pause" : "play") : "chevron-right"} 
-                  size={20} 
-                  color="#FFFFFF" 
-                />
-              </Pressable>
+                <Pressable
+                  style={[styles.controlButton, { backgroundColor: "rgba(0,0,0,0.5)" }]}
+                  onPress={karaokeAutoAdvance ? toggleAutoAdvance : handleKaraokeAdvance}
+                >
+                  <Feather 
+                    name={karaokeAutoAdvance ? (isAutoAdvancing ? "pause" : "play") : "chevron-right"} 
+                    size={18} 
+                    color="#FFFFFF" 
+                  />
+                </Pressable>
+              </View>
+              
+              <Slider
+                style={styles.progressSliderTop}
+                minimumValue={0}
+                maximumValue={Math.max(1, karaokeLines.length - 1)}
+                value={karaokeCurrentLine}
+                onValueChange={goToLine}
+                minimumTrackTintColor={theme.accent || "#6366F1"}
+                maximumTrackTintColor="rgba(255,255,255,0.2)"
+                thumbTintColor={theme.accent || "#6366F1"}
+              />
+              
+              <Text style={[styles.hintTextTop, { color: theme.secondaryText }]}>
+                {karaokeAutoAdvance 
+                  ? (isAutoAdvancing ? "Tap right to pause" : "Tap right to resume")
+                  : "Tap sides to navigate"}
+              </Text>
             </View>
           )}
-
-          <View style={[styles.karaokeHint, { bottom: 90 + progressBarHeight }]}>
-            <Text style={[styles.hintText, { color: theme.secondaryText }]}>
-              {karaokeAutoAdvance 
-                ? (isAutoAdvancing ? "Tap right to pause" : "Tap right to resume")
-                : "Tap right to advance, left to go back"}
-            </Text>
-          </View>
         </View>
       </GestureDetector>
     );
@@ -565,35 +564,35 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
   },
-  karaokeHint: {
+  progressTopContainer: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  hintText: {
-    fontSize: 12,
-    opacity: 0.6,
-  },
-  progressSliderContainer: {
-    position: "absolute",
+    top: 40,
     left: 16,
     right: 16,
+    alignItems: "center",
+    zIndex: 100,
+  },
+  progressRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "center",
+    gap: 16,
+    marginBottom: 4,
   },
-  sliderWrapper: {
-    flex: 1,
-    alignItems: "center",
+  progressTextTop: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "600",
+    minWidth: 70,
+    textAlign: "center",
   },
-  progressSlider: {
+  progressSliderTop: {
     width: "100%",
-    height: 30,
+    height: 24,
   },
-  progressText: {
+  hintTextTop: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.7)",
+    opacity: 0.5,
     marginTop: 2,
   },
   controlButton: {
