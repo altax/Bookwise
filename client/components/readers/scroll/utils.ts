@@ -32,6 +32,18 @@ export const renderBionicWord = (word: string, key: string | number): React.Reac
   );
 };
 
+const createLine = (text: string, index: number, lineHeight: number): MeasuredLine => ({
+  text,
+  x: 0,
+  y: index * lineHeight,
+  width: 300,
+  height: lineHeight,
+  ascender: 0,
+  descender: 0,
+  capHeight: 0,
+  xHeight: 0,
+});
+
 export const generateLinesFromContent = (
   content: string,
   lineHeight: number,
@@ -44,58 +56,105 @@ export const generateLinesFromContent = (
   const lines: MeasuredLine[] = [];
 
   const processWords = (words: string[]) => {
-    let currentLine = "";
-    words.forEach((word) => {
-      if ((currentLine + " " + word).length > avgCharsPerLine && currentLine.length > 0) {
-        lines.push({
-          text: currentLine.trim(),
-          x: 0,
-          y: lines.length * lineHeight,
-          width: 300,
-          height: lineHeight,
-          ascender: 0,
-          descender: 0,
-          capHeight: 0,
-          xHeight: 0,
-        });
-        currentLine = word;
-      } else {
-        currentLine = currentLine ? currentLine + " " + word : word;
+    const lineWords: string[] = [];
+    let lineLength = 0;
+    
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const newLength = lineLength + (lineWords.length > 0 ? 1 : 0) + word.length;
+      
+      if (newLength > avgCharsPerLine && lineWords.length > 0) {
+        lines.push(createLine(lineWords.join(" "), lines.length, lineHeight));
+        lineWords.length = 0;
+        lineLength = 0;
       }
-    });
-    if (currentLine.trim().length > 0) {
-      lines.push({
-        text: currentLine.trim(),
-        x: 0,
-        y: lines.length * lineHeight,
-        width: 300,
-        height: lineHeight,
-        ascender: 0,
-        descender: 0,
-        capHeight: 0,
-        xHeight: 0,
-      });
+      
+      lineWords.push(word);
+      lineLength += (lineWords.length > 1 ? 1 : 0) + word.length;
+    }
+    
+    if (lineWords.length > 0) {
+      lines.push(createLine(lineWords.join(" "), lines.length, lineHeight));
     }
   };
 
   if (paragraphs.length === 0) {
-    const words = content
-      .trim()
-      .split(/\s+/)
-      .filter((w) => w.length > 0);
+    const words = content.trim().split(/\s+/).filter((w) => w.length > 0);
     if (words.length === 0) return [];
     processWords(words);
   } else {
-    paragraphs.forEach((paragraph) => {
-      const words = paragraph
-        .trim()
-        .split(/\s+/)
-        .filter((w) => w.length > 0);
+    for (let i = 0; i < paragraphs.length; i++) {
+      const words = paragraphs[i].trim().split(/\s+/).filter((w) => w.length > 0);
       processWords(words);
-    });
+    }
   }
 
   return lines;
+};
+
+export const generateLinesFromContentAsync = async (
+  content: string,
+  lineHeight: number,
+  avgCharsPerLine: number = 50,
+  onFirstChunkReady?: (lines: MeasuredLine[]) => void,
+  chunkSize: number = 30
+): Promise<MeasuredLine[]> => {
+  if (!content || content.trim().length === 0) return [];
+
+  const yieldToMain = (): Promise<void> => {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  const words = content
+    .replace(/\r\n/g, " ")
+    .replace(/\r/g, " ")
+    .replace(/\n+/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+
+  if (words.length === 0) return [];
+
+  const allLines: MeasuredLine[] = [];
+  const lineWords: string[] = [];
+  let lineLength = 0;
+  let firstChunkSent = false;
+  let wordsSinceYield = 0;
+
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const newLength = lineLength + (lineWords.length > 0 ? 1 : 0) + word.length;
+
+    if (newLength > avgCharsPerLine && lineWords.length > 0) {
+      allLines.push(createLine(lineWords.join(" "), allLines.length, lineHeight));
+      lineWords.length = 0;
+      lineLength = 0;
+
+      if (!firstChunkSent && allLines.length >= chunkSize) {
+        firstChunkSent = true;
+        onFirstChunkReady?.(allLines.slice());
+        await yieldToMain();
+      }
+    }
+
+    lineWords.push(word);
+    lineLength += (lineWords.length > 1 ? 1 : 0) + word.length;
+    wordsSinceYield++;
+
+    if (wordsSinceYield >= 500) {
+      wordsSinceYield = 0;
+      await yieldToMain();
+    }
+  }
+
+  if (lineWords.length > 0) {
+    allLines.push(createLine(lineWords.join(" "), allLines.length, lineHeight));
+  }
+
+  if (!firstChunkSent && allLines.length > 0) {
+    onFirstChunkReady?.(allLines);
+  }
+
+  return allLines;
 };
 
 export const createTextStyle = (settings: ReaderSettings, lineHeight: number, textColor: string) => ({
