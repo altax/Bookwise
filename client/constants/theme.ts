@@ -373,6 +373,11 @@ export const KaraokeDefaults = {
   upcomingOpacity: 0.35,
   readOpacity: 0.2,
   animationDuration: 300,
+  minUpcomingOpacity: 0.1,
+  maxUpcomingOpacity: 0.8,
+  minAutoAdvanceSpeed: 0.5,
+  maxAutoAdvanceSpeed: 5,
+  defaultAutoAdvanceSpeed: 2,
 };
 
 export const Shadows = {

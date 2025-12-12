@@ -86,6 +86,9 @@ interface ReadingSettings {
   appTheme: AppTheme;
   autoAppTheme: boolean;
   showReadingTime: boolean;
+  karaokeAutoAdvance: boolean;
+  karaokeAutoAdvanceSpeed: number;
+  karaokeUpcomingOpacity: number;
 }
 
 interface ReadingContextType {
@@ -135,6 +138,9 @@ const defaultSettings: ReadingSettings = {
   appTheme: "light",
   autoAppTheme: true,
   showReadingTime: true,
+  karaokeAutoAdvance: false,
+  karaokeAutoAdvanceSpeed: KaraokeDefaults.defaultAutoAdvanceSpeed,
+  karaokeUpcomingOpacity: KaraokeDefaults.upcomingOpacity,
 };
 
 const defaultStats: ReadingStats = {

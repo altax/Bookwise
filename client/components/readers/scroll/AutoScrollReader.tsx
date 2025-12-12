@@ -7,8 +7,8 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   LayoutChangeEvent,
-  TextLayoutEventData,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -25,9 +25,10 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import type { AutoScrollReaderProps, MeasuredLine, UnifiedScrollReaderRef } from "./types";
-import { getFontFamily, renderBionicWord, generateLinesFromContent, createTextStyle } from "./utils";
+import { getFontFamily, renderBionicWord, generateLinesFromContentAsync, createTextStyle } from "./utils";
 
 const getScreenDimensions = () => Dimensions.get("window");
+const CHUNK_SIZE = 100;
 
 export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollReaderProps>(
   (
@@ -47,7 +48,6 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
     const insets = useSafeAreaInsets();
     const animatedScrollViewRef = useAnimatedRef<Animated.ScrollView>();
     const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const measuredLinesRef = useRef<MeasuredLine[]>([]);
     const autoScrollPosition = useSharedValue(0);
     const isAutoScrollActive = useSharedValue(false);
     const autoScrollMaxY = useSharedValue(0);
@@ -71,6 +71,12 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
     const [isAutoScrollPlaying, setIsAutoScrollPlaying] = useState(false);
     const [showStartOverlay, setShowStartOverlay] = useState(false);
     const hasUserStartedReadingRef = useRef(false);
+    const [displayedLines, setDisplayedLines] = useState<MeasuredLine[]>([]);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+    const allLinesRef = useRef<MeasuredLine[]>([]);
+    const generationIdRef = useRef(0);
+    const onReadyCalledRef = useRef(false);
 
     const highlightOpacity = useSharedValue(0);
     const animatedScrollY = useSharedValue(0);
@@ -82,6 +88,66 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
     const paddingBottom = insets.bottom + 60 + progressBarHeight;
 
     const autoScrollSpeed = Math.max(5, Math.min(settings.autoScrollSpeed || 50, 200));
+
+    useEffect(() => {
+      if (!content || content.length === 0) {
+        setDisplayedLines([]);
+        setIsReady(false);
+        onReadyCalledRef.current = false;
+        return;
+      }
+
+      const currentGenerationId = ++generationIdRef.current;
+      onReadyCalledRef.current = false;
+      setIsReady(false);
+      setDisplayedLines([]);
+      allLinesRef.current = [];
+
+      generateLinesFromContentAsync(
+        content,
+        lineHeight,
+        50,
+        (firstChunkLines) => {
+          if (currentGenerationId !== generationIdRef.current) return;
+          allLinesRef.current = firstChunkLines;
+          setDisplayedLines(firstChunkLines.slice(0, CHUNK_SIZE));
+          setIsReady(true);
+          if (!onReadyCalledRef.current) {
+            onReadyCalledRef.current = true;
+            onReady?.();
+          }
+        },
+        CHUNK_SIZE
+      ).then((allLines) => {
+        if (currentGenerationId !== generationIdRef.current) return;
+        allLinesRef.current = allLines;
+        if (!onReadyCalledRef.current && allLines.length > 0) {
+          setDisplayedLines(allLines.slice(0, CHUNK_SIZE));
+          onReadyCalledRef.current = true;
+          setIsReady(true);
+          onReady?.();
+        }
+      });
+
+      return () => {
+        generationIdRef.current++;
+      };
+    }, [content, lineHeight, onReady]);
+
+    const loadMoreLines = useCallback(() => {
+      if (isLoadingMore) return;
+      if (displayedLines.length >= allLinesRef.current.length) return;
+
+      setIsLoadingMore(true);
+      setTimeout(() => {
+        const nextChunk = allLinesRef.current.slice(
+          displayedLines.length,
+          displayedLines.length + CHUNK_SIZE
+        );
+        setDisplayedLines(prev => [...prev, ...nextChunk]);
+        setIsLoadingMore(false);
+      }, 0);
+    }, [displayedLines.length, isLoadingMore]);
 
     const updateScrollPosition = useCallback(
       (y: number) => {
@@ -111,9 +177,13 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
           const maxScroll = Math.max(1, contentHeight - viewportHeight + paddingTop + paddingBottom);
           const progress = Math.min(1, Math.max(0, y / maxScroll));
           onScrollProgress?.(progress, y, contentHeight);
+
+          if (progress > 0.7) {
+            loadMoreLines();
+          }
         }
       },
-      [contentHeight, viewportHeight, paddingTop, paddingBottom, onScrollProgress]
+      [contentHeight, viewportHeight, paddingTop, paddingBottom, onScrollProgress, loadMoreLines]
     );
 
     useAnimatedReaction(
@@ -194,40 +264,6 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
       onTap?.();
     }, [onTap, isAutoScrollPlaying, stopAutoScroll]);
 
-    const generateFallbackLines = useCallback(() => {
-      if (!content || content.trim().length === 0) return;
-
-      const lines = generateLinesFromContent(content, lineHeight);
-      if (lines.length > 0) {
-        measuredLinesRef.current = lines;
-        setIsReady(true);
-      }
-    }, [content, lineHeight]);
-
-    const handleTextLayout = useCallback(
-      (event: NativeSyntheticEvent<TextLayoutEventData>) => {
-        const { lines } = event.nativeEvent;
-        if (lines && lines.length > 0) {
-          const allLines = lines.map((line) => ({
-            text: line.text,
-            x: line.x,
-            y: line.y,
-            width: line.width,
-            height: line.height,
-            ascender: line.ascender,
-            descender: line.descender,
-            capHeight: line.capHeight,
-            xHeight: line.xHeight,
-          }));
-          measuredLinesRef.current = allLines;
-          setIsReady(true);
-        } else if (!isReady) {
-          generateFallbackLines();
-        }
-      },
-      [isReady, generateFallbackLines]
-    );
-
     const scrollToPosition = useCallback(
       (position: number) => {
         if (contentHeight <= 0) return;
@@ -268,9 +304,13 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
           const maxScroll = contentSize.height - layoutMeasurement.height;
           const progress = maxScroll > 0 ? contentOffset.y / maxScroll : 0;
           onScrollProgress?.(Math.min(1, Math.max(0, progress)), contentOffset.y, contentSize.height);
+
+          if (progress > 0.7) {
+            loadMoreLines();
+          }
         }
       },
-      [onScrollProgress]
+      [onScrollProgress, loadMoreLines]
     );
 
     const handleContentLayout = useCallback((event: LayoutChangeEvent) => {
@@ -331,23 +371,49 @@ export const AutoScrollReader = forwardRef<UnifiedScrollReaderRef, AutoScrollRea
 
     const tapGesture = Gesture.Tap()
       .onEnd((event) => {
-        const screenWidth = viewportHeight > 0 ? viewportHeight : 400;
+        const screenWidth = screenDimensions.width;
         const tapX = event.x;
         if (tapX < screenWidth * 0.25) {
           runOnJS(handleLeftTap)();
+        } else if (tapX > screenWidth * 0.75) {
+          runOnJS(toggleAutoScroll)();
         }
       })
       .runOnJS(true);
 
     const renderContent = () => {
-      const textToRender = settings.bionicReading
-        ? content.split(/(\s+)/).map((part, i) => renderBionicWord(part, i))
-        : content;
+      if (!isReady) {
+        return (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={theme.accent || theme.text} />
+            <Text style={[styles.loadingText, { color: theme.secondaryText }]}>
+              Loading...
+            </Text>
+          </View>
+        );
+      }
+
+      const textToRender = displayedLines.map((line, index) => {
+        const lineText = settings.bionicReading
+          ? line.text.split(/(\s+)/).map((part, i) => renderBionicWord(part, `${index}-${i}`))
+          : line.text;
+        return (
+          <Text key={index} style={[styles.lineText, textStyle]}>
+            {lineText}
+            {"\n"}
+          </Text>
+        );
+      });
 
       return (
-        <Text style={[styles.content, textStyle]} onTextLayout={handleTextLayout}>
+        <>
           {textToRender}
-        </Text>
+          {isLoadingMore && (
+            <View style={styles.loadingMoreContainer}>
+              <ActivityIndicator size="small" color={theme.accent || theme.text} />
+            </View>
+          )}
+        </>
       );
     };
 
@@ -435,7 +501,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     flexGrow: 1,
   },
-  content: {
+  lineText: {
     flexWrap: "wrap",
   },
   highlightOverlay: {
@@ -516,5 +582,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
     opacity: 0.7,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+  },
+  loadingMoreContainer: {
+    paddingVertical: 20,
+    alignItems: "center",
   },
 });

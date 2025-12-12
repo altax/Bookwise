@@ -8,7 +8,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode, ScrollModes, ScrollMode, AutoScrollDefaults } from "@/constants/theme";
+import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode, ScrollModes, ScrollMode, AutoScrollDefaults, KaraokeDefaults } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useReading } from "@/contexts/ReadingContext";
@@ -323,6 +323,82 @@ export default function SettingsScreen() {
                 thumbTintColor={theme.accent}
               />
             </View>
+          )}
+
+          {settings.scrollMode === "karaoke" && (
+            <>
+              <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelRow}>
+                    <Feather name="play-circle" size={20} color={theme.text} />
+                    <View>
+                      <ThemedText style={styles.settingLabel}>Auto Advance</ThemedText>
+                      <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                        Automatically move to next line
+                      </ThemedText>
+                    </View>
+                  </View>
+                  <Switch
+                    value={settings.karaokeAutoAdvance}
+                    onValueChange={(value) => handleToggle("karaokeAutoAdvance", value)}
+                    trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                    thumbColor="#FFFFFF"
+                  />
+                </View>
+              </View>
+
+              {settings.karaokeAutoAdvance && (
+                <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
+                  <View style={styles.settingRow}>
+                    <View style={styles.settingLabelRow}>
+                      <Feather name="fast-forward" size={20} color={theme.text} />
+                      <View>
+                        <ThemedText style={styles.settingLabel}>Auto Advance Speed</ThemedText>
+                        <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                          {settings.karaokeAutoAdvanceSpeed?.toFixed(1) || KaraokeDefaults.defaultAutoAdvanceSpeed} lines/sec
+                        </ThemedText>
+                      </View>
+                    </View>
+                  </View>
+                  <Slider
+                    style={styles.slider}
+                    minimumValue={KaraokeDefaults.minAutoAdvanceSpeed}
+                    maximumValue={KaraokeDefaults.maxAutoAdvanceSpeed}
+                    step={0.1}
+                    value={settings.karaokeAutoAdvanceSpeed || KaraokeDefaults.defaultAutoAdvanceSpeed}
+                    onValueChange={(value) => updateSettings({ karaokeAutoAdvanceSpeed: value })}
+                    minimumTrackTintColor={theme.accent}
+                    maximumTrackTintColor={theme.backgroundTertiary}
+                    thumbTintColor={theme.accent}
+                  />
+                </View>
+              )}
+
+              <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
+                <View style={styles.settingRow}>
+                  <View style={styles.settingLabelRow}>
+                    <Feather name="eye" size={20} color={theme.text} />
+                    <View>
+                      <ThemedText style={styles.settingLabel}>Upcoming Lines Visibility</ThemedText>
+                      <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                        {Math.round((settings.karaokeUpcomingOpacity || KaraokeDefaults.upcomingOpacity) * 100)}%
+                      </ThemedText>
+                    </View>
+                  </View>
+                </View>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={KaraokeDefaults.minUpcomingOpacity}
+                  maximumValue={KaraokeDefaults.maxUpcomingOpacity}
+                  step={0.05}
+                  value={settings.karaokeUpcomingOpacity || KaraokeDefaults.upcomingOpacity}
+                  onValueChange={(value) => updateSettings({ karaokeUpcomingOpacity: value })}
+                  minimumTrackTintColor={theme.accent}
+                  maximumTrackTintColor={theme.backgroundTertiary}
+                  thumbTintColor={theme.accent}
+                />
+              </View>
+            </>
           )}
 
         </View>

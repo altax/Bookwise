@@ -180,9 +180,24 @@ export default function ReadingScreen() {
     }
   }, [settings.hapticFeedback]);
 
+  const wasAutoScrollingRef = useRef(false);
+
   const pauseAutoScrollIfPlaying = useCallback(() => {
     if (settings.scrollMode === "autoScroll" && readerRef.current?.isAutoScrolling()) {
+      wasAutoScrollingRef.current = true;
       readerRef.current.pauseAutoScroll();
+    } else if (settings.scrollMode === "karaoke" && readerRef.current?.isAutoScrolling()) {
+      wasAutoScrollingRef.current = true;
+      readerRef.current.pauseAutoScroll();
+    }
+  }, [settings.scrollMode]);
+
+  const resumeAutoScrollIfWasPlaying = useCallback(() => {
+    if (wasAutoScrollingRef.current && (settings.scrollMode === "autoScroll" || settings.scrollMode === "karaoke")) {
+      wasAutoScrollingRef.current = false;
+      setTimeout(() => {
+        readerRef.current?.toggleAutoScroll();
+      }, 100);
     }
   }, [settings.scrollMode]);
 
@@ -216,9 +231,12 @@ export default function ReadingScreen() {
 
   const closeSettingsPanel = useCallback(() => {
     settingsPanelTranslate.value = withTiming(SCREEN_HEIGHT, { duration: 250 });
-    setTimeout(() => setShowSettingsPanel(false), 250);
+    setTimeout(() => {
+      setShowSettingsPanel(false);
+      resumeAutoScrollIfWasPlaying();
+    }, 250);
     triggerHaptic();
-  }, [settingsPanelTranslate, triggerHaptic]);
+  }, [settingsPanelTranslate, triggerHaptic, resumeAutoScrollIfWasPlaying]);
 
   const handleClose = () => {
     updateBookProgress(activeBook.id, currentPage, totalPages);

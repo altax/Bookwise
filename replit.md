@@ -128,6 +128,14 @@ server/
 4. **Focus** - Minimal distractions, timer enabled
 
 ## Recent Changes
+- December 2024: **KARAOKE MODE IMPROVEMENTS v3**:
+  - Fixed long line rendering - increased line spacing to prevent overlapping when text wraps
+  - Added rewind slider at bottom for quick navigation to any line
+  - Added visibility control for upcoming lines (adjustable brightness/opacity in settings)
+  - Added manual/auto advance toggle with configurable speed (0.5-5 lines/sec)
+  - Added playback controls (pause/resume) for auto-advance mode
+- December 2024: **AUTO SCROLL FIX**: Fixed auto scroll resuming after closing settings panel
+- December 2024: **LAZY LOADING**: Implemented progressive content loading for seamless and auto scroll modes (like karaoke), reducing initial load time for large books
 - December 2024: **KARAOKE MODE FIX v2**: Fixed text truncation, tap handling, and performance:
   - Dynamic line width calculation based on screen width, font size, and letter spacing (no more fixed 45-char limit)
   - Lines now properly fit the screen without being cut off
