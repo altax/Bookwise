@@ -479,74 +479,69 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
     }
   }, [scrollMode, isReady, contentHeight]);
 
-  useEffect(() => {
-    if (scrollMode === "karaoke" && isReady) {
-      setKaraokeCurrentLine(0);
-      karaokeAnimatedLine.value = 0;
+  const karaokeLines = useMemo(() => {
+    if (scrollMode !== "karaoke" || !content || content.length === 0) {
+      return [];
     }
-  }, [scrollMode, isReady]);
+    
+    const paragraphs = content.split(/\n+/);
+    const lines: MeasuredLine[] = [];
+    const avgCharsPerLine = 45;
+    const currentLineHeight = settings.fontSize * settings.lineSpacing;
+    
+    paragraphs.forEach((paragraph) => {
+      if (paragraph.trim().length === 0) return;
+      
+      const words = paragraph.trim().split(/\s+/);
+      let currentLine = '';
+      
+      words.forEach((word) => {
+        if ((currentLine + ' ' + word).length > avgCharsPerLine && currentLine.length > 0) {
+          lines.push({
+            text: currentLine.trim(),
+            x: 0,
+            y: lines.length * currentLineHeight,
+            width: 300,
+            height: currentLineHeight,
+            ascender: 0,
+            descender: 0,
+            capHeight: 0,
+            xHeight: 0,
+          });
+          currentLine = word;
+        } else {
+          currentLine = currentLine ? currentLine + ' ' + word : word;
+        }
+      });
+      
+      if (currentLine.trim().length > 0) {
+        lines.push({
+          text: currentLine.trim(),
+          x: 0,
+          y: lines.length * currentLineHeight,
+          width: 300,
+          height: currentLineHeight,
+          ascender: 0,
+          descender: 0,
+          capHeight: 0,
+          xHeight: 0,
+        });
+      }
+    });
+    
+    return lines;
+  }, [scrollMode, content, settings.fontSize, settings.lineSpacing]);
 
   useEffect(() => {
-    if (scrollMode === "karaoke" && content && content.length > 0) {
-      console.log('[Karaoke] Generating lines, content length:', content.length, 'nonEmptyLines:', nonEmptyLines.length);
-      
-      if (nonEmptyLines.length === 0) {
-        const paragraphs = content.split(/\n+/);
-        const lines: MeasuredLine[] = [];
-        const avgCharsPerLine = 50;
-        const currentLineHeight = settings.fontSize * settings.lineSpacing;
-        
-        paragraphs.forEach((paragraph) => {
-          if (paragraph.trim().length === 0) return;
-          
-          const words = paragraph.trim().split(/\s+/);
-          let currentLine = '';
-          
-          words.forEach((word) => {
-            if ((currentLine + ' ' + word).length > avgCharsPerLine && currentLine.length > 0) {
-              lines.push({
-                text: currentLine.trim(),
-                x: 0,
-                y: lines.length * currentLineHeight,
-                width: 300,
-                height: currentLineHeight,
-                ascender: 0,
-                descender: 0,
-                capHeight: 0,
-                xHeight: 0,
-              });
-              currentLine = word;
-            } else {
-              currentLine = currentLine ? currentLine + ' ' + word : word;
-            }
-          });
-          
-          if (currentLine.trim().length > 0) {
-            lines.push({
-              text: currentLine.trim(),
-              x: 0,
-              y: lines.length * currentLineHeight,
-              width: 300,
-              height: currentLineHeight,
-              ascender: 0,
-              descender: 0,
-              capHeight: 0,
-              xHeight: 0,
-            });
-          }
-        });
-        
-        console.log('[Karaoke] Generated lines:', lines.length);
-        
-        if (lines.length > 0) {
-          measuredLinesRef.current = lines;
-          nonEmptyLinesRef.current = lines;
-          setNonEmptyLines(lines);
-          setIsReady(true);
-        }
-      }
+    if (scrollMode === "karaoke" && karaokeLines.length > 0) {
+      measuredLinesRef.current = karaokeLines;
+      nonEmptyLinesRef.current = karaokeLines;
+      setNonEmptyLines(karaokeLines);
+      setKaraokeCurrentLine(0);
+      karaokeAnimatedLine.value = 0;
+      setIsReady(true);
     }
-  }, [scrollMode, content, settings.fontSize, settings.lineSpacing, nonEmptyLines.length]);
+  }, [scrollMode, karaokeLines]);
 
   const handleKaraokeAdvance = useCallback(() => {
     if (nonEmptyLines.length === 0) return;
@@ -671,26 +666,12 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
   const screenCenter = viewportHeight / 2;
 
   const renderKaraokeView = () => {
+    const linesToRender = nonEmptyLines.length > 0 ? nonEmptyLines : karaokeLines;
+    
     return (
       <View style={[styles.karaokeFullScreen, { backgroundColor: theme.backgroundRoot }]}>
-        <View style={styles.measurementContainer}>
-          <Text 
-            style={[
-              styles.content, 
-              textStyle, 
-              { 
-                opacity: 0,
-                paddingHorizontal: 24,
-              }
-            ]} 
-            onTextLayout={handleTextLayout}
-          >
-            {content}
-          </Text>
-        </View>
-        
         <View style={styles.karaokeContent}>
-          {nonEmptyLines.length > 0 && nonEmptyLines.map((line, index) => (
+          {linesToRender.length > 0 ? linesToRender.map((line, index) => (
             <KaraokeLine
               key={index}
               line={line}
@@ -705,16 +686,14 @@ export const UnifiedScrollReader = forwardRef<UnifiedScrollReaderRef, UnifiedScr
               bionicReading={settings.bionicReading}
               renderBionicWord={renderBionicWord}
             />
-          ))}
+          )) : (
+            <View style={[styles.karaokeLine, { top: screenCenter - lineHeight / 2 }]}>
+              <Text style={[styles.content, textStyle, { textAlign: 'center', opacity: 0.5 }]}>
+                {!content || content.length === 0 ? 'No content available' : 'Preparing...'}
+              </Text>
+            </View>
+          )}
         </View>
-        
-        {nonEmptyLines.length === 0 && (
-          <View style={[styles.karaokeLine, { top: screenCenter - lineHeight / 2 }]}>
-            <Text style={[styles.content, textStyle, { textAlign: 'center', opacity: 0.5 }]}>
-              {!content || content.length === 0 ? 'No content' : 'Loading...'}
-            </Text>
-          </View>
-        )}
       </View>
     );
   };
@@ -1016,14 +995,6 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     overflow: 'hidden',
-  },
-  measurementContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    opacity: 0,
-    pointerEvents: 'none',
   },
   karaokeContent: {
     flex: 1,
