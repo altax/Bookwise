@@ -297,7 +297,19 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
       })
       .runOnJS(true);
 
-    const linesToRender = karaokeLines;
+    const VIRTUALIZATION_WINDOW = 15;
+    
+    const visibleLines = useMemo(() => {
+      if (karaokeLines.length === 0) return [];
+      
+      const startIndex = Math.max(0, karaokeCurrentLine - VIRTUALIZATION_WINDOW);
+      const endIndex = Math.min(karaokeLines.length, karaokeCurrentLine + VIRTUALIZATION_WINDOW + 1);
+      
+      return karaokeLines.slice(startIndex, endIndex).map((line, i) => ({
+        line,
+        originalIndex: startIndex + i,
+      }));
+    }, [karaokeLines, karaokeCurrentLine]);
 
     return (
       <GestureDetector gesture={tapGesture}>
@@ -313,12 +325,12 @@ export const KaraokeReader = forwardRef<UnifiedScrollReaderRef, KaraokeReaderPro
           </View>
 
           <View style={styles.karaokeContent}>
-            {linesToRender.length > 0 ? (
-              linesToRender.map((line, index) => (
+            {visibleLines.length > 0 ? (
+              visibleLines.map(({ line, originalIndex }) => (
                 <KaraokeLine
-                  key={index}
+                  key={originalIndex}
                   line={line}
-                  index={index}
+                  index={originalIndex}
                   karaokeAnimatedLine={karaokeAnimatedLine}
                   currentLineIndex={karaokeCurrentLine}
                   screenCenter={screenCenter}
