@@ -644,177 +644,87 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Тема приложения
-          </ThemedText>
-
-          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingLabelRow}>
-                <Feather name="sun" size={20} color={theme.text} />
-                <View>
-                  <ThemedText style={styles.settingLabel}>Авто тема</ThemedText>
-                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                    Следовать системной теме
-                  </ThemedText>
-                </View>
-              </View>
-              <Switch
-                value={settings.autoAppTheme}
-                onValueChange={(value) => {
-                  if (settings.hapticFeedback) {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }
-                  updateSettings({ autoAppTheme: value });
-                }}
-                trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-          </View>
-
-          <View style={[styles.appThemeToggle, { backgroundColor: theme.backgroundDefault }]}>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="h4" style={styles.sectionTitle}>
+              Тема
+            </ThemedText>
             <Pressable
               style={[
-                styles.appThemeOption,
-                {
-                  backgroundColor: !settings.autoAppTheme && settings.appTheme === "light" 
-                    ? theme.accent 
-                    : theme.backgroundSecondary,
-                  opacity: settings.autoAppTheme ? 0.5 : 1,
-                },
-              ]}
-              onPress={() => {
-                if (!settings.autoAppTheme) {
-                  if (settings.hapticFeedback) {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }
-                  updateSettings({ appTheme: "light" });
+                styles.autoThemeChip,
+                { 
+                  backgroundColor: settings.autoTheme ? theme.accent : theme.backgroundSecondary,
                 }
-              }}
-              disabled={settings.autoAppTheme}
+              ]}
+              onPress={() => handleAutoThemeToggle(!settings.autoTheme)}
             >
               <Feather 
-                name="sun" 
-                size={22} 
-                color={!settings.autoAppTheme && settings.appTheme === "light" ? "#FFFFFF" : theme.text} 
+                name={settings.autoTheme ? "sun" : "moon"} 
+                size={14} 
+                color={settings.autoTheme ? "#FFFFFF" : theme.secondaryText} 
               />
-              <ThemedText
+              <ThemedText 
                 style={[
-                  styles.appThemeOptionText,
-                  { color: !settings.autoAppTheme && settings.appTheme === "light" ? "#FFFFFF" : theme.text },
+                  styles.autoThemeChipText, 
+                  { color: settings.autoTheme ? "#FFFFFF" : theme.secondaryText }
                 ]}
               >
-                Светлая
-              </ThemedText>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.appThemeOption,
-                {
-                  backgroundColor: !settings.autoAppTheme && settings.appTheme === "dark" 
-                    ? theme.accent 
-                    : theme.backgroundSecondary,
-                  opacity: settings.autoAppTheme ? 0.5 : 1,
-                },
-              ]}
-              onPress={() => {
-                if (!settings.autoAppTheme) {
-                  if (settings.hapticFeedback) {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  }
-                  updateSettings({ appTheme: "dark" });
-                }
-              }}
-              disabled={settings.autoAppTheme}
-            >
-              <Feather 
-                name="moon" 
-                size={22} 
-                color={!settings.autoAppTheme && settings.appTheme === "dark" ? "#FFFFFF" : theme.text} 
-              />
-              <ThemedText
-                style={[
-                  styles.appThemeOptionText,
-                  { color: !settings.autoAppTheme && settings.appTheme === "dark" ? "#FFFFFF" : theme.text },
-                ]}
-              >
-                Тёмная
+                Авто
               </ThemedText>
             </Pressable>
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Тема чтения
-          </ThemedText>
-
-          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingLabelRow}>
-                <Feather name="book-open" size={20} color={theme.text} />
-                <View>
-                  <ThemedText style={styles.settingLabel}>Авто тема чтения</ThemedText>
-                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                    Следовать системной теме
-                  </ThemedText>
-                </View>
-              </View>
-              <Switch
-                value={settings.autoTheme}
-                onValueChange={handleAutoThemeToggle}
-                trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
-                thumbColor="#FFFFFF"
-              />
+          <View style={[styles.themeContainer, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.themeColorGrid}>
+              {themeOptions.map((option) => {
+                const isSelected = !settings.autoTheme && settings.themeMode === option.mode;
+                return (
+                  <Pressable
+                    key={option.mode}
+                    style={[
+                      styles.themeColorItem,
+                      { opacity: settings.autoTheme ? 0.4 : 1 },
+                    ]}
+                    onPress={() => handleThemeChange(option.mode)}
+                    disabled={settings.autoTheme}
+                  >
+                    <View
+                      style={[
+                        styles.themeColorCircle,
+                        {
+                          backgroundColor: option.bgColor,
+                          borderWidth: isSelected ? 3 : 1,
+                          borderColor: isSelected ? option.accentColor : theme.border,
+                        },
+                      ]}
+                    >
+                      <View 
+                        style={[
+                          styles.themeColorInner,
+                          { backgroundColor: option.textColor }
+                        ]} 
+                      />
+                      {isSelected && (
+                        <View style={[styles.themeCheckmark, { backgroundColor: option.accentColor }]}>
+                          <Feather name="check" size={10} color="#FFFFFF" />
+                        </View>
+                      )}
+                    </View>
+                    <ThemedText 
+                      style={[
+                        styles.themeColorLabel, 
+                        { 
+                          color: isSelected ? theme.text : theme.secondaryText,
+                          fontWeight: isSelected ? "600" : "400",
+                        }
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {option.label}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
             </View>
-          </View>
-
-          <View style={styles.themeGrid}>
-            {themeOptions.map((option) => (
-              <Pressable
-                key={option.mode}
-                style={[
-                  styles.themeCard,
-                  {
-                    backgroundColor: option.bgColor,
-                    borderWidth: !settings.autoTheme && settings.themeMode === option.mode ? 2 : 1,
-                    borderColor:
-                      !settings.autoTheme && settings.themeMode === option.mode
-                        ? option.accentColor
-                        : theme.border,
-                    opacity: settings.autoTheme ? 0.5 : 1,
-                  },
-                ]}
-                onPress={() => handleThemeChange(option.mode)}
-                disabled={settings.autoTheme}
-              >
-                <View style={styles.themePreview}>
-                  <View
-                    style={[
-                      styles.themePreviewLine,
-                      { backgroundColor: option.textColor, width: "80%" },
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.themePreviewLine,
-                      { backgroundColor: option.textColor, width: "50%" },
-                    ]}
-                  />
-                </View>
-                <ThemedText
-                  style={[styles.themeLabel, { color: option.textColor }]}
-                >
-                  {option.label}
-                </ThemedText>
-                {!settings.autoTheme && settings.themeMode === option.mode && (
-                  <View style={[styles.checkmark, { backgroundColor: option.accentColor }]}>
-                    <Feather name="check" size={12} color="#FFFFFF" />
-                  </View>
-                )}
-              </Pressable>
-            ))}
           </View>
         </View>
 
@@ -1033,41 +943,66 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  themeGrid: {
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  autoThemeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    gap: 6,
+  },
+  autoThemeChipText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  themeContainer: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+  },
+  themeColorGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: Spacing.md,
+    justifyContent: "flex-start",
+    gap: Spacing.sm,
   },
-  themeCard: {
-    width: "30%",
-    aspectRatio: 0.85,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.sm,
-    justifyContent: "space-between",
+  themeColorItem: {
+    width: "18%",
+    alignItems: "center",
+    marginBottom: Spacing.sm,
   },
-  themePreview: {
-    gap: 4,
-    marginTop: Spacing.xs,
-  },
-  themePreviewLine: {
-    height: 3,
-    borderRadius: 1.5,
-    opacity: 0.4,
-  },
-  themeLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  checkmark: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+  themeColorCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 6,
+  },
+  themeColorInner: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    opacity: 0.8,
+  },
+  themeCheckmark: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  themeColorLabel: {
+    fontSize: 10,
+    textAlign: "center",
+    maxWidth: 60,
   },
   statsGrid: {
     flexDirection: "row",
@@ -1124,24 +1059,5 @@ const styles = StyleSheet.create({
   },
   focusHintText: {
     fontSize: 12,
-  },
-  appThemeToggle: {
-    flexDirection: "row",
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.sm,
-  },
-  appThemeOption: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
-  },
-  appThemeOptionText: {
-    fontSize: 15,
-    fontWeight: "600",
   },
 });
