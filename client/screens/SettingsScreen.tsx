@@ -7,7 +7,7 @@ import Slider from "@react-native-community/slider";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { useTheme, useAppTheme } from "@/hooks/useTheme";
+import { useAppTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -18,8 +18,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
-  const { theme } = useTheme();
-  const { isDark } = useAppTheme();
+  const { theme, isDark } = useAppTheme();
   const { settings, updateSettings, exportData, books, stats } = useReading();
   const [isExporting, setIsExporting] = useState(false);
 
