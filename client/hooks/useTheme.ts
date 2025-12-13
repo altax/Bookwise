@@ -15,7 +15,7 @@ export function useTheme(overrideMode?: ThemeMode, autoTheme: boolean = true) {
     effectiveMode = systemColorScheme === "dark" ? "dark" : "light";
   }
   
-  const isDark = effectiveMode === "dark" || effectiveMode === "midnight" || effectiveMode === "dusk" || effectiveMode === "forest";
+  const isDark = effectiveMode === "dark" || effectiveMode === "midnight" || effectiveMode === "dusk" || effectiveMode === "forest" || effectiveMode === "darkNight" || effectiveMode === "nightSepia" || effectiveMode === "deepBlue";
   const isSepia = effectiveMode === "sepia";
   const isAmoled = effectiveMode === "midnight";
   const theme = Colors[effectiveMode] || Colors.light;

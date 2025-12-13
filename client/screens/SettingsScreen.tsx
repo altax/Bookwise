@@ -29,6 +29,16 @@ const themeOptions: ThemeOption[] = [
   { mode: "dusk", label: "Dusk", bgColor: "#1A1625", textColor: "#E8E4F0", accentColor: "#B794F6" },
   { mode: "midnight", label: "AMOLED", bgColor: "#000000", textColor: "#E5E5E5", accentColor: "#3B82F6" },
   { mode: "forest", label: "Forest", bgColor: "#0F1A14", textColor: "#E8EDE8", accentColor: "#4ADE80" },
+  { mode: "warmPaper", label: "Тёплая бумага", bgColor: "#F3E9D2", textColor: "#2C2C2C", accentColor: "#A54B1F" },
+  { mode: "softSepia", label: "Мягкая сепия", bgColor: "#F4ECD8", textColor: "#5B4636", accentColor: "#9A553E" },
+  { mode: "neutralGray", label: "Нейтральный серый", bgColor: "#ECECEC", textColor: "#1A1A1A", accentColor: "#006600" },
+  { mode: "highContrast", label: "Высокий контраст", bgColor: "#F5F5F5", textColor: "#000000", accentColor: "#D22B2B" },
+  { mode: "darkNight", label: "Тёмная ночь", bgColor: "#121212", textColor: "#E0E0E0", accentColor: "#FFA726" },
+  { mode: "nightSepia", label: "Ночная сепия", bgColor: "#2B1B0E", textColor: "#E3DAC9", accentColor: "#D9B38C" },
+  { mode: "sunlight", label: "Солнечный свет", bgColor: "#F7EAD7", textColor: "#3E2723", accentColor: "#3D5B1A" },
+  { mode: "softGreen", label: "Нежно-зелёный", bgColor: "#E7F4E4", textColor: "#334422", accentColor: "#356C2B" },
+  { mode: "softPink", label: "Нежно-розовый", bgColor: "#FFEAF2", textColor: "#4A293F", accentColor: "#7C2260" },
+  { mode: "deepBlue", label: "Глубокий синий", bgColor: "#0C0F17", textColor: "#CCCCCC", accentColor: "#FFD700" },
 ];
 
 export default function SettingsScreen() {
