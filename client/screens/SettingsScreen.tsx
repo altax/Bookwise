@@ -7,61 +7,21 @@ import Slider from "@react-native-community/slider";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
-import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ThemeMode, ThemeNames, Colors, ReadingModes, ReadingMode, ScrollModes, ScrollMode, AutoScrollDefaults, KaraokeDefaults } from "@/constants/theme";
+import { useTheme, useAppTheme } from "@/hooks/useTheme";
+import { Spacing, BorderRadius, ReadingDefaults, AvailableFonts, ReadingModes, ReadingMode, ScrollModes, ScrollMode, AutoScrollDefaults, KaraokeDefaults } from "@/constants/theme";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { useReading } from "@/contexts/ReadingContext";
 import { ProgressRing } from "@/components/ProgressRing";
-
-interface ThemeOption {
-  mode: ThemeMode;
-  label: string;
-  bgColor: string;
-  textColor: string;
-  accentColor: string;
-}
-
-const themeOptions: ThemeOption[] = [
-  { mode: "light", label: "Day", bgColor: "#FAFAFA", textColor: "#1A1A2E", accentColor: "#6366F1" },
-  { mode: "dark", label: "Night", bgColor: "#0A0A0F", textColor: "#F5F5F7", accentColor: "#818CF8" },
-  { mode: "sepia", label: "Paper", bgColor: "#F8F4EC", textColor: "#3D2E1F", accentColor: "#A0785C" },
-  { mode: "dusk", label: "Dusk", bgColor: "#1A1625", textColor: "#E8E4F0", accentColor: "#B794F6" },
-  { mode: "midnight", label: "AMOLED", bgColor: "#000000", textColor: "#E5E5E5", accentColor: "#3B82F6" },
-  { mode: "forest", label: "Forest", bgColor: "#0F1A14", textColor: "#E8EDE8", accentColor: "#4ADE80" },
-  { mode: "warmPaper", label: "Тёплая бумага", bgColor: "#F3E9D2", textColor: "#2C2C2C", accentColor: "#A54B1F" },
-  { mode: "softSepia", label: "Мягкая сепия", bgColor: "#F4ECD8", textColor: "#5B4636", accentColor: "#9A553E" },
-  { mode: "neutralGray", label: "Нейтральный серый", bgColor: "#ECECEC", textColor: "#1A1A1A", accentColor: "#006600" },
-  { mode: "highContrast", label: "Высокий контраст", bgColor: "#F5F5F5", textColor: "#000000", accentColor: "#D22B2B" },
-  { mode: "darkNight", label: "Тёмная ночь", bgColor: "#121212", textColor: "#E0E0E0", accentColor: "#FFA726" },
-  { mode: "nightSepia", label: "Ночная сепия", bgColor: "#2B1B0E", textColor: "#E3DAC9", accentColor: "#D9B38C" },
-  { mode: "sunlight", label: "Солнечный свет", bgColor: "#F7EAD7", textColor: "#3E2723", accentColor: "#3D5B1A" },
-  { mode: "softGreen", label: "Нежно-зелёный", bgColor: "#E7F4E4", textColor: "#334422", accentColor: "#356C2B" },
-  { mode: "softPink", label: "Нежно-розовый", bgColor: "#FFEAF2", textColor: "#4A293F", accentColor: "#7C2260" },
-  { mode: "deepBlue", label: "Глубокий синий", bgColor: "#0C0F17", textColor: "#CCCCCC", accentColor: "#FFD700" },
-];
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
   const tabBarHeight = useBottomTabBarHeight();
   const { theme } = useTheme();
+  const { isDark } = useAppTheme();
   const { settings, updateSettings, exportData, books, stats, applyReadingMode } = useReading();
   const [isExporting, setIsExporting] = useState(false);
-
-  const handleThemeChange = (mode: ThemeMode) => {
-    if (settings.hapticFeedback) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    updateSettings({ themeMode: mode, autoTheme: false });
-  };
-
-  const handleAutoThemeToggle = (value: boolean) => {
-    if (settings.hapticFeedback) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    updateSettings({ autoTheme: value });
-  };
 
   const handleFontChange = (fontValue: string) => {
     if (settings.hapticFeedback) {
@@ -91,9 +51,27 @@ export default function SettingsScreen() {
     updateSettings({ [key]: value });
   };
 
+  const handleAppThemeToggle = () => {
+    if (settings.hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    if (settings.autoAppTheme) {
+      updateSettings({ autoAppTheme: false, appTheme: isDark ? "light" : "dark" });
+    } else {
+      updateSettings({ appTheme: settings.appTheme === "light" ? "dark" : "light" });
+    }
+  };
+
+  const handleAutoAppThemeToggle = (value: boolean) => {
+    if (settings.hapticFeedback) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    updateSettings({ autoAppTheme: value });
+  };
+
   const handleExportJSON = async () => {
     if (books.length === 0) {
-      Alert.alert("No Data", "You don't have any books with bookmarks or notes to export.");
+      Alert.alert("Нет данных", "У вас нет книг с закладками или заметками для экспорта.");
       return;
     }
 
@@ -111,7 +89,7 @@ export default function SettingsScreen() {
       }
     } catch (error) {
       console.error("Export error:", error);
-      Alert.alert("Export Failed", "Could not export your data. Please try again.");
+      Alert.alert("Ошибка экспорта", "Не удалось экспортировать данные. Попробуйте ещё раз.");
     } finally {
       setIsExporting(false);
     }
@@ -119,7 +97,7 @@ export default function SettingsScreen() {
 
   const handleExportCSV = async () => {
     if (books.length === 0) {
-      Alert.alert("No Data", "You don't have any books with bookmarks or notes to export.");
+      Alert.alert("Нет данных", "У вас нет книг с закладками или заметками для экспорта.");
       return;
     }
 
@@ -149,7 +127,7 @@ export default function SettingsScreen() {
       }
     } catch (error) {
       console.error("Export error:", error);
-      Alert.alert("Export Failed", "Could not export your data. Please try again.");
+      Alert.alert("Ошибка экспорта", "Не удалось экспортировать данные. Попробуйте ещё раз.");
     } finally {
       setIsExporting(false);
     }
@@ -168,186 +146,160 @@ export default function SettingsScreen() {
         contentContainerStyle={[
           styles.content,
           {
-            paddingTop: headerHeight + Spacing.xl,
+            paddingTop: headerHeight + Spacing.lg,
             paddingBottom: tabBarHeight + Spacing.xl,
           },
         ]}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Today's Progress
-          </ThemedText>
-
-          <View style={[styles.card, styles.progressCard, { backgroundColor: theme.backgroundDefault }]}>
+        <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+          <View style={styles.progressSection}>
             <ProgressRing 
               progress={dailyGoalProgress} 
-              size={100}
-              strokeWidth={8}
-              label="Daily Goal"
+              size={80}
+              strokeWidth={6}
+              label=""
             />
-            <View style={styles.progressStats}>
-              <View style={styles.progressStatItem}>
-                <ThemedText type="h3" style={{ color: theme.accent }}>
-                  {Math.round(stats.todayReadingTime / 60)}
-                </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
-                  min today
-                </ThemedText>
-              </View>
-              <View style={styles.progressStatItem}>
-                <ThemedText type="h3" style={{ color: theme.accent }}>
-                  {stats.currentStreak}
-                </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
-                  day streak
-                </ThemedText>
+            <View style={styles.progressInfo}>
+              <ThemedText type="h4">Сегодня</ThemedText>
+              <View style={styles.progressRow}>
+                <View style={styles.progressItem}>
+                  <ThemedText type="h3" style={{ color: theme.accent }}>
+                    {Math.round(stats.todayReadingTime / 60)}
+                  </ThemedText>
+                  <ThemedText style={[styles.progressLabel, { color: theme.secondaryText }]}>
+                    мин
+                  </ThemedText>
+                </View>
+                <View style={[styles.progressDivider, { backgroundColor: theme.border }]} />
+                <View style={styles.progressItem}>
+                  <ThemedText type="h3" style={{ color: theme.accent }}>
+                    {stats.currentStreak}
+                  </ThemedText>
+                  <ThemedText style={[styles.progressLabel, { color: theme.secondaryText }]}>
+                    дней
+                  </ThemedText>
+                </View>
               </View>
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Reading Mode
+          <ThemedText style={[styles.sectionTitle, { color: theme.secondaryText }]}>
+            Чтение
           </ThemedText>
 
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.readingModes}
-          >
-            {(Object.keys(ReadingModes) as ReadingMode[]).map((mode) => {
-              const modeData = ReadingModes[mode];
-              const isSelected = settings.readingMode === mode;
-              return (
-                <Pressable
-                  key={mode}
-                  style={[
-                    styles.readingModeCard,
-                    {
-                      backgroundColor: isSelected ? theme.accent : theme.backgroundDefault,
-                      borderColor: isSelected ? theme.accent : theme.border,
-                    },
-                  ]}
-                  onPress={() => handleReadingModeChange(mode)}
-                >
-                  <ThemedText
-                    style={[
-                      styles.readingModeName,
-                      { color: isSelected ? "#FFFFFF" : theme.text },
-                    ]}
-                  >
-                    {modeData.name}
-                  </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.readingModeDesc,
-                      { color: isSelected ? "rgba(255,255,255,0.8)" : theme.secondaryText },
-                    ]}
-                  >
-                    {modeData.description}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Scroll Mode
-          </ThemedText>
-
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.readingModes}
-          >
-            {(Object.keys(ScrollModes) as ScrollMode[]).map((mode) => {
-              const modeData = ScrollModes[mode];
-              const isSelected = settings.scrollMode === mode;
-              const iconName = mode === "seamless" ? "arrow-down" : mode === "karaoke" ? "mic" : "play";
-              return (
-                <Pressable
-                  key={mode}
-                  style={[
-                    styles.readingModeCard,
-                    {
-                      backgroundColor: isSelected ? theme.accent : theme.backgroundDefault,
-                      borderColor: isSelected ? theme.accent : theme.border,
-                    },
-                  ]}
-                  onPress={() => handleScrollModeChange(mode)}
-                >
-                  <Feather 
-                    name={iconName} 
-                    size={20} 
-                    color={isSelected ? "#FFFFFF" : theme.text} 
-                    style={{ marginBottom: 4 }}
-                  />
-                  <ThemedText
-                    style={[
-                      styles.readingModeName,
-                      { color: isSelected ? "#FFFFFF" : theme.text },
-                    ]}
-                  >
-                    {modeData.name}
-                  </ThemedText>
-                  <ThemedText
-                    style={[
-                      styles.readingModeDesc,
-                      { color: isSelected ? "rgba(255,255,255,0.8)" : theme.secondaryText },
-                    ]}
-                  >
-                    {modeData.description}
-                  </ThemedText>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          {settings.scrollMode === "autoScroll" && (
-            <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
-              <View style={styles.settingRow}>
-                <View style={styles.settingLabelRow}>
-                  <Feather name="fast-forward" size={20} color={theme.text} />
-                  <View>
-                    <ThemedText style={styles.settingLabel}>Auto-Scroll Speed</ThemedText>
-                    <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                      {settings.autoScrollSpeed} px/sec
-                    </ThemedText>
-                  </View>
-                </View>
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Feather name="book-open" size={20} color={theme.accent} />
+                <ThemedText style={styles.settingText}>Режим чтения</ThemedText>
               </View>
-              <Slider
-                style={styles.slider}
-                minimumValue={AutoScrollDefaults.minSpeed}
-                maximumValue={AutoScrollDefaults.maxSpeed}
-                step={5}
-                value={settings.autoScrollSpeed}
-                onValueChange={(value) => updateSettings({ autoScrollSpeed: value })}
-                minimumTrackTintColor={theme.accent}
-                maximumTrackTintColor={theme.backgroundTertiary}
-                thumbTintColor={theme.accent}
-              />
             </View>
-          )}
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            >
+              {(Object.keys(ReadingModes) as ReadingMode[]).map((mode) => {
+                const modeData = ReadingModes[mode];
+                const isSelected = settings.readingMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    style={[
+                      styles.modeChip,
+                      {
+                        backgroundColor: isSelected ? theme.accent : theme.backgroundSecondary,
+                      },
+                    ]}
+                    onPress={() => handleReadingModeChange(mode)}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.modeChipText,
+                        { color: isSelected ? "#FFFFFF" : theme.text },
+                      ]}
+                    >
+                      {modeData.name}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
 
-          {settings.scrollMode === "karaoke" && (
-            <>
-              <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
-                <View style={styles.settingRow}>
-                  <View style={styles.settingLabelRow}>
-                    <Feather name="play-circle" size={20} color={theme.text} />
-                    <View>
-                      <ThemedText style={styles.settingLabel}>Auto Advance</ThemedText>
-                      <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                        Automatically move to next line
-                      </ThemedText>
-                    </View>
-                  </View>
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Feather name="arrow-down" size={20} color={theme.accent} />
+                <ThemedText style={styles.settingText}>Прокрутка</ThemedText>
+              </View>
+            </View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+            >
+              {(Object.keys(ScrollModes) as ScrollMode[]).map((mode) => {
+                const modeData = ScrollModes[mode];
+                const isSelected = settings.scrollMode === mode;
+                return (
+                  <Pressable
+                    key={mode}
+                    style={[
+                      styles.modeChip,
+                      {
+                        backgroundColor: isSelected ? theme.accent : theme.backgroundSecondary,
+                      },
+                    ]}
+                    onPress={() => handleScrollModeChange(mode)}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.modeChipText,
+                        { color: isSelected ? "#FFFFFF" : theme.text },
+                      ]}
+                    >
+                      {modeData.name}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {settings.scrollMode === "autoScroll" && (
+              <View style={styles.subSetting}>
+                <View style={styles.sliderHeader}>
+                  <ThemedText style={[styles.subSettingLabel, { color: theme.secondaryText }]}>
+                    Скорость
+                  </ThemedText>
+                  <ThemedText style={[styles.sliderValue, { color: theme.accent }]}>
+                    {settings.autoScrollSpeed} px/сек
+                  </ThemedText>
+                </View>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={AutoScrollDefaults.minSpeed}
+                  maximumValue={AutoScrollDefaults.maxSpeed}
+                  step={5}
+                  value={settings.autoScrollSpeed}
+                  onValueChange={(value) => updateSettings({ autoScrollSpeed: value })}
+                  minimumTrackTintColor={theme.accent}
+                  maximumTrackTintColor={theme.backgroundTertiary}
+                  thumbTintColor={theme.accent}
+                />
+              </View>
+            )}
+
+            {settings.scrollMode === "karaoke" && (
+              <>
+                <View style={styles.subSettingToggle}>
+                  <ThemedText style={[styles.subSettingLabel, { color: theme.secondaryText }]}>
+                    Автопереход
+                  </ThemedText>
                   <Switch
                     value={settings.karaokeAutoAdvance}
                     onValueChange={(value) => handleToggle("karaokeAutoAdvance", value)}
@@ -355,136 +307,149 @@ export default function SettingsScreen() {
                     thumbColor="#FFFFFF"
                   />
                 </View>
-              </View>
 
-              {settings.karaokeAutoAdvance && (
-                <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
-                  <View style={styles.settingRow}>
-                    <View style={styles.settingLabelRow}>
-                      <Feather name="fast-forward" size={20} color={theme.text} />
-                      <View>
-                        <ThemedText style={styles.settingLabel}>Auto Advance Speed</ThemedText>
-                        <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                          {settings.karaokeAutoAdvanceSpeed?.toFixed(1) || KaraokeDefaults.defaultAutoAdvanceSpeed} lines/sec
-                        </ThemedText>
-                      </View>
+                {settings.karaokeAutoAdvance && (
+                  <View style={styles.subSetting}>
+                    <View style={styles.sliderHeader}>
+                      <ThemedText style={[styles.subSettingLabel, { color: theme.secondaryText }]}>
+                        Скорость
+                      </ThemedText>
+                      <ThemedText style={[styles.sliderValue, { color: theme.accent }]}>
+                        {settings.karaokeAutoAdvanceSpeed?.toFixed(1) || KaraokeDefaults.defaultAutoAdvanceSpeed} л/сек
+                      </ThemedText>
                     </View>
+                    <Slider
+                      style={styles.slider}
+                      minimumValue={KaraokeDefaults.minAutoAdvanceSpeed}
+                      maximumValue={KaraokeDefaults.maxAutoAdvanceSpeed}
+                      step={0.1}
+                      value={settings.karaokeAutoAdvanceSpeed || KaraokeDefaults.defaultAutoAdvanceSpeed}
+                      onValueChange={(value) => updateSettings({ karaokeAutoAdvanceSpeed: value })}
+                      minimumTrackTintColor={theme.accent}
+                      maximumTrackTintColor={theme.backgroundTertiary}
+                      thumbTintColor={theme.accent}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.subSetting}>
+                  <View style={styles.sliderHeader}>
+                    <ThemedText style={[styles.subSettingLabel, { color: theme.secondaryText }]}>
+                      Видимость следующих строк
+                    </ThemedText>
+                    <ThemedText style={[styles.sliderValue, { color: theme.accent }]}>
+                      {Math.round((settings.karaokeUpcomingOpacity || KaraokeDefaults.upcomingOpacity) * 100)}%
+                    </ThemedText>
                   </View>
                   <Slider
                     style={styles.slider}
-                    minimumValue={KaraokeDefaults.minAutoAdvanceSpeed}
-                    maximumValue={KaraokeDefaults.maxAutoAdvanceSpeed}
-                    step={0.1}
-                    value={settings.karaokeAutoAdvanceSpeed || KaraokeDefaults.defaultAutoAdvanceSpeed}
-                    onValueChange={(value) => updateSettings({ karaokeAutoAdvanceSpeed: value })}
+                    minimumValue={KaraokeDefaults.minUpcomingOpacity}
+                    maximumValue={KaraokeDefaults.maxUpcomingOpacity}
+                    step={0.05}
+                    value={settings.karaokeUpcomingOpacity || KaraokeDefaults.upcomingOpacity}
+                    onValueChange={(value) => updateSettings({ karaokeUpcomingOpacity: value })}
                     minimumTrackTintColor={theme.accent}
                     maximumTrackTintColor={theme.backgroundTertiary}
                     thumbTintColor={theme.accent}
                   />
                 </View>
-              )}
-
-              <View style={[styles.card, { backgroundColor: theme.backgroundDefault, marginTop: Spacing.md }]}>
-                <View style={styles.settingRow}>
-                  <View style={styles.settingLabelRow}>
-                    <Feather name="eye" size={20} color={theme.text} />
-                    <View>
-                      <ThemedText style={styles.settingLabel}>Upcoming Lines Visibility</ThemedText>
-                      <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                        {Math.round((settings.karaokeUpcomingOpacity || KaraokeDefaults.upcomingOpacity) * 100)}%
-                      </ThemedText>
-                    </View>
-                  </View>
-                </View>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={KaraokeDefaults.minUpcomingOpacity}
-                  maximumValue={KaraokeDefaults.maxUpcomingOpacity}
-                  step={0.05}
-                  value={settings.karaokeUpcomingOpacity || KaraokeDefaults.upcomingOpacity}
-                  onValueChange={(value) => updateSettings({ karaokeUpcomingOpacity: value })}
-                  minimumTrackTintColor={theme.accent}
-                  maximumTrackTintColor={theme.backgroundTertiary}
-                  thumbTintColor={theme.accent}
-                />
-              </View>
-            </>
-          )}
-
+              </>
+            )}
+          </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Typography
+          <ThemedText style={[styles.sectionTitle, { color: theme.secondaryText }]}>
+            Типографика
           </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <ThemedText>Font Size</ThemedText>
-              <ThemedText style={{ color: theme.secondaryText }}>
-                {Math.round(settings.fontSize)}pt
-              </ThemedText>
+            <View style={styles.sliderRow}>
+              <View style={styles.sliderHeader}>
+                <View style={styles.settingLeft}>
+                  <Feather name="type" size={18} color={theme.accent} />
+                  <ThemedText style={styles.settingText}>Размер шрифта</ThemedText>
+                </View>
+                <ThemedText style={[styles.sliderValue, { color: theme.accent }]}>
+                  {Math.round(settings.fontSize)}
+                </ThemedText>
+              </View>
+              <Slider
+                style={styles.slider}
+                minimumValue={ReadingDefaults.minFontSize}
+                maximumValue={ReadingDefaults.maxFontSize}
+                value={settings.fontSize}
+                onValueChange={(value) => updateSettings({ fontSize: value })}
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={theme.backgroundTertiary}
+                thumbTintColor={theme.accent}
+              />
             </View>
-            <Slider
-              style={styles.slider}
-              minimumValue={ReadingDefaults.minFontSize}
-              maximumValue={ReadingDefaults.maxFontSize}
-              value={settings.fontSize}
-              onValueChange={(value) => updateSettings({ fontSize: value })}
-              minimumTrackTintColor={theme.accent}
-              maximumTrackTintColor={theme.backgroundTertiary}
-              thumbTintColor={theme.accent}
-            />
+
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+            <View style={styles.sliderRow}>
+              <View style={styles.sliderHeader}>
+                <View style={styles.settingLeft}>
+                  <Feather name="align-justify" size={18} color={theme.accent} />
+                  <ThemedText style={styles.settingText}>Межстрочный</ThemedText>
+                </View>
+                <ThemedText style={[styles.sliderValue, { color: theme.accent }]}>
+                  {settings.lineSpacing.toFixed(1)}
+                </ThemedText>
+              </View>
+              <Slider
+                style={styles.slider}
+                minimumValue={ReadingDefaults.minLineSpacing}
+                maximumValue={ReadingDefaults.maxLineSpacing}
+                step={0.1}
+                value={settings.lineSpacing}
+                onValueChange={(value) => updateSettings({ lineSpacing: value })}
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={theme.backgroundTertiary}
+                thumbTintColor={theme.accent}
+              />
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+            <View style={styles.sliderRow}>
+              <View style={styles.sliderHeader}>
+                <View style={styles.settingLeft}>
+                  <Feather name="more-horizontal" size={18} color={theme.accent} />
+                  <ThemedText style={styles.settingText}>Межбуквенный</ThemedText>
+                </View>
+                <ThemedText style={[styles.sliderValue, { color: theme.accent }]}>
+                  {(settings.letterSpacing || 0).toFixed(1)}
+                </ThemedText>
+              </View>
+              <Slider
+                style={styles.slider}
+                minimumValue={ReadingDefaults.minLetterSpacing}
+                maximumValue={ReadingDefaults.maxLetterSpacing}
+                step={0.1}
+                value={settings.letterSpacing || 0}
+                onValueChange={(value) => updateSettings({ letterSpacing: value })}
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={theme.backgroundTertiary}
+                thumbTintColor={theme.accent}
+              />
+            </View>
           </View>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <ThemedText>Line Spacing</ThemedText>
-              <ThemedText style={{ color: theme.secondaryText }}>
-                {settings.lineSpacing.toFixed(1)}
-              </ThemedText>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Feather name="edit-3" size={18} color={theme.accent} />
+                <ThemedText style={styles.settingText}>Шрифт</ThemedText>
+              </View>
             </View>
-            <Slider
-              style={styles.slider}
-              minimumValue={ReadingDefaults.minLineSpacing}
-              maximumValue={ReadingDefaults.maxLineSpacing}
-              step={0.1}
-              value={settings.lineSpacing}
-              onValueChange={(value) => updateSettings({ lineSpacing: value })}
-              minimumTrackTintColor={theme.accent}
-              maximumTrackTintColor={theme.backgroundTertiary}
-              thumbTintColor={theme.accent}
-            />
-          </View>
-
-          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <ThemedText>Letter Spacing</ThemedText>
-              <ThemedText style={{ color: theme.secondaryText }}>
-                {(settings.letterSpacing || 0).toFixed(1)}
-              </ThemedText>
-            </View>
-            <Slider
-              style={styles.slider}
-              minimumValue={ReadingDefaults.minLetterSpacing}
-              maximumValue={ReadingDefaults.maxLetterSpacing}
-              step={0.1}
-              value={settings.letterSpacing || 0}
-              onValueChange={(value) => updateSettings({ letterSpacing: value })}
-              minimumTrackTintColor={theme.accent}
-              maximumTrackTintColor={theme.backgroundTertiary}
-              thumbTintColor={theme.accent}
-            />
-          </View>
-
-          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <ThemedText style={styles.cardLabel}>Font</ThemedText>
-            <View style={styles.fontOptions}>
+            <View style={styles.fontGrid}>
               {AvailableFonts.map((font) => (
                 <Pressable
                   key={font.value}
                   style={[
-                    styles.fontOption,
+                    styles.fontChip,
                     {
                       backgroundColor:
                         settings.fontFamily === font.value
@@ -496,7 +461,7 @@ export default function SettingsScreen() {
                 >
                   <ThemedText
                     style={[
-                      styles.fontOptionText,
+                      styles.fontChipText,
                       {
                         color:
                           settings.fontFamily === font.value
@@ -514,18 +479,18 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Reading Features
+          <ThemedText style={[styles.sectionTitle, { color: theme.secondaryText }]}>
+            Функции
           </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingLabelRow}>
-                <Feather name="zap" size={20} color={theme.text} />
+            <View style={styles.toggleRow}>
+              <View style={styles.settingLeft}>
+                <Feather name="zap" size={20} color={theme.accent} />
                 <View>
-                  <ThemedText style={styles.settingLabel}>Bionic Reading</ThemedText>
+                  <ThemedText style={styles.settingText}>Bionic Reading</ThemedText>
                   <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                    Bold first half of words for faster reading
+                    Выделение начала слов
                   </ThemedText>
                 </View>
               </View>
@@ -536,16 +501,16 @@ export default function SettingsScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
-          </View>
 
-          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingLabelRow}>
-                <Feather name="target" size={20} color={theme.text} />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+            <View style={styles.toggleRow}>
+              <View style={styles.settingLeft}>
+                <Feather name="target" size={20} color={theme.accent} />
                 <View>
-                  <ThemedText style={styles.settingLabel}>Focus Mode</ThemedText>
+                  <ThemedText style={styles.settingText}>Фокус-режим</ThemedText>
                   <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                    Zen mode with minimal UI and timer
+                    Минимальный интерфейс + помодоро
                   </ThemedText>
                 </View>
               </View>
@@ -556,24 +521,16 @@ export default function SettingsScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
-            {settings.focusMode && (
-              <View style={[styles.focusHint, { backgroundColor: theme.backgroundSecondary }]}>
-                <Feather name="coffee" size={14} color={theme.accent} />
-                <ThemedText style={[styles.focusHintText, { color: theme.secondaryText }]}>
-                  Break reminder every 25 min (Pomodoro)
-                </ThemedText>
-              </View>
-            )}
-          </View>
 
-          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingLabelRow}>
-                <Feather name="smartphone" size={20} color={theme.text} />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+            <View style={styles.toggleRow}>
+              <View style={styles.settingLeft}>
+                <Feather name="smartphone" size={20} color={theme.accent} />
                 <View>
-                  <ThemedText style={styles.settingLabel}>Haptic Feedback</ThemedText>
+                  <ThemedText style={styles.settingText}>Вибрация</ThemedText>
                   <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                    Vibration on interactions
+                    Тактильный отклик
                   </ThemedText>
                 </View>
               </View>
@@ -584,21 +541,21 @@ export default function SettingsScreen() {
                 thumbColor="#FFFFFF"
               />
             </View>
-          </View>
 
-          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <View style={styles.settingLabelRow}>
-                <Feather name="align-left" size={20} color={theme.text} />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+            <View style={styles.toggleRow}>
+              <View style={styles.settingLeft}>
+                <Feather name="align-left" size={20} color={theme.accent} />
                 <View>
-                  <ThemedText style={styles.settingLabel}>Text Alignment</ThemedText>
+                  <ThemedText style={styles.settingText}>Выравнивание</ThemedText>
                   <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-                    {settings.textAlignment === "left" ? "Left aligned" : "Justified"}
+                    {settings.textAlignment === "left" ? "По левому краю" : "По ширине"}
                   </ThemedText>
                 </View>
               </View>
               <Pressable
-                style={[styles.alignmentToggle, { backgroundColor: theme.backgroundSecondary }]}
+                style={[styles.toggleButton, { backgroundColor: theme.backgroundSecondary }]}
                 onPress={() => {
                   if (settings.hapticFeedback) {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -606,8 +563,8 @@ export default function SettingsScreen() {
                   updateSettings({ textAlignment: settings.textAlignment === "left" ? "justify" : "left" });
                 }}
               >
-                <ThemedText style={styles.alignmentToggleText}>
-                  {settings.textAlignment === "left" ? "Left" : "Justify"}
+                <ThemedText style={styles.toggleButtonText}>
+                  {settings.textAlignment === "left" ? "Лево" : "Ширина"}
                 </ThemedText>
               </Pressable>
             </View>
@@ -615,195 +572,75 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Goals
+          <ThemedText style={[styles.sectionTitle, { color: theme.secondaryText }]}>
+            Цель
           </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.settingRow}>
-              <ThemedText>Daily Reading Goal</ThemedText>
-              <ThemedText style={{ color: theme.accent, fontWeight: "600" }}>
-                {settings.dailyGoal} min
-              </ThemedText>
-            </View>
-            <Slider
-              style={styles.slider}
-              minimumValue={5}
-              maximumValue={120}
-              step={5}
-              value={settings.dailyGoal}
-              onValueChange={(value) => updateSettings({ dailyGoal: value })}
-              minimumTrackTintColor={theme.accent}
-              maximumTrackTintColor={theme.backgroundTertiary}
-              thumbTintColor={theme.accent}
-            />
-            <ThemedText style={[styles.settingHint, { color: theme.secondaryText, marginTop: Spacing.sm }]}>
-              Set your daily reading time target
-            </ThemedText>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText type="h4" style={styles.sectionTitle}>
-              Тема
-            </ThemedText>
-            <Pressable
-              style={[
-                styles.autoThemeChip,
-                { 
-                  backgroundColor: settings.autoTheme ? theme.accent : theme.backgroundSecondary,
-                }
-              ]}
-              onPress={() => handleAutoThemeToggle(!settings.autoTheme)}
-            >
-              <Feather 
-                name={settings.autoTheme ? "sun" : "moon"} 
-                size={14} 
-                color={settings.autoTheme ? "#FFFFFF" : theme.secondaryText} 
+            <View style={styles.sliderRow}>
+              <View style={styles.sliderHeader}>
+                <View style={styles.settingLeft}>
+                  <Feather name="clock" size={18} color={theme.accent} />
+                  <ThemedText style={styles.settingText}>Ежедневная цель</ThemedText>
+                </View>
+                <ThemedText style={[styles.sliderValue, { color: theme.accent }]}>
+                  {settings.dailyGoal} мин
+                </ThemedText>
+              </View>
+              <Slider
+                style={styles.slider}
+                minimumValue={5}
+                maximumValue={120}
+                step={5}
+                value={settings.dailyGoal}
+                onValueChange={(value) => updateSettings({ dailyGoal: value })}
+                minimumTrackTintColor={theme.accent}
+                maximumTrackTintColor={theme.backgroundTertiary}
+                thumbTintColor={theme.accent}
               />
-              <ThemedText 
-                style={[
-                  styles.autoThemeChipText, 
-                  { color: settings.autoTheme ? "#FFFFFF" : theme.secondaryText }
-                ]}
-              >
-                Авто
-              </ThemedText>
-            </Pressable>
-          </View>
-
-          <View style={[styles.themeContainer, { backgroundColor: theme.backgroundDefault }]}>
-            <View style={styles.themeColorGrid}>
-              {themeOptions.map((option) => {
-                const isSelected = !settings.autoTheme && settings.themeMode === option.mode;
-                return (
-                  <Pressable
-                    key={option.mode}
-                    style={[
-                      styles.themeColorItem,
-                      { opacity: settings.autoTheme ? 0.4 : 1 },
-                    ]}
-                    onPress={() => handleThemeChange(option.mode)}
-                    disabled={settings.autoTheme}
-                  >
-                    <View
-                      style={[
-                        styles.themeColorCircle,
-                        {
-                          backgroundColor: option.bgColor,
-                          borderWidth: isSelected ? 3 : 1,
-                          borderColor: isSelected ? option.accentColor : theme.border,
-                        },
-                      ]}
-                    >
-                      <View 
-                        style={[
-                          styles.themeColorInner,
-                          { backgroundColor: option.textColor }
-                        ]} 
-                      />
-                      {isSelected && (
-                        <View style={[styles.themeCheckmark, { backgroundColor: option.accentColor }]}>
-                          <Feather name="check" size={10} color="#FFFFFF" />
-                        </View>
-                      )}
-                    </View>
-                    <ThemedText 
-                      style={[
-                        styles.themeColorLabel, 
-                        { 
-                          color: isSelected ? theme.text : theme.secondaryText,
-                          fontWeight: isSelected ? "600" : "400",
-                        }
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {option.label}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Statistics
+          <ThemedText style={[styles.sectionTitle, { color: theme.secondaryText }]}>
+            Статистика
           </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.statsGrid}>
               <View style={styles.statItem}>
-                <ThemedText type="h3" style={{ color: theme.accent }}>
-                  {books.length}
-                </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
-                  Books
-                </ThemedText>
+                <ThemedText type="h3" style={{ color: theme.accent }}>{books.length}</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>книг</ThemedText>
               </View>
               <View style={styles.statItem}>
-                <ThemedText type="h3" style={{ color: theme.accent }}>
-                  {totalReadingMinutes}
-                </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
-                  Minutes Read
-                </ThemedText>
+                <ThemedText type="h3" style={{ color: theme.accent }}>{totalReadingMinutes}</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>минут</ThemedText>
               </View>
               <View style={styles.statItem}>
-                <ThemedText type="h3" style={{ color: theme.accent }}>
-                  {stats.averageReadingSpeed}
-                </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
-                  WPM
-                </ThemedText>
+                <ThemedText type="h3" style={{ color: theme.accent }}>{totalBookmarks}</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>закладок</ThemedText>
               </View>
               <View style={styles.statItem}>
-                <ThemedText type="h3" style={{ color: theme.accent }}>
-                  {stats.longestStreak}
-                </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
-                  Best Streak
-                </ThemedText>
-              </View>
-            </View>
-            <View style={[styles.statsGrid, { marginTop: Spacing.lg }]}>
-              <View style={styles.statItem}>
-                <ThemedText type="h3" style={{ color: theme.accent }}>
-                  {totalBookmarks}
-                </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
-                  Bookmarks
-                </ThemedText>
-              </View>
-              <View style={styles.statItem}>
-                <ThemedText type="h3" style={{ color: theme.accent }}>
-                  {totalNotes}
-                </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
-                  Notes
-                </ThemedText>
-              </View>
-              <View style={styles.statItem}>
-                <ThemedText type="h3" style={{ color: theme.accent }}>
-                  {stats.totalPagesRead}
-                </ThemedText>
-                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>
-                  Pages Read
-                </ThemedText>
+                <ThemedText type="h3" style={{ color: theme.accent }}>{totalNotes}</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: theme.secondaryText }]}>заметок</ThemedText>
               </View>
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            Data
+          <ThemedText style={[styles.sectionTitle, { color: theme.secondaryText }]}>
+            Данные
           </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
-            <ThemedText style={styles.cardLabel}>Export</ThemedText>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Feather name="download" size={18} color={theme.accent} />
+                <ThemedText style={styles.settingText}>Экспорт закладок</ThemedText>
+              </View>
+            </View>
             <View style={styles.exportButtons}>
               <Pressable
                 style={[styles.exportButton, { backgroundColor: theme.backgroundSecondary }]}
@@ -813,10 +650,7 @@ export default function SettingsScreen() {
                 {isExporting ? (
                   <ActivityIndicator size="small" color={theme.accent} />
                 ) : (
-                  <>
-                    <Feather name="file-text" size={20} color={theme.text} />
-                    <ThemedText style={styles.exportButtonText}>JSON</ThemedText>
-                  </>
+                  <ThemedText style={styles.exportButtonText}>JSON</ThemedText>
                 )}
               </Pressable>
               <Pressable
@@ -827,27 +661,70 @@ export default function SettingsScreen() {
                 {isExporting ? (
                   <ActivityIndicator size="small" color={theme.accent} />
                 ) : (
-                  <>
-                    <Feather name="file" size={20} color={theme.text} />
-                    <ThemedText style={styles.exportButtonText}>CSV</ThemedText>
-                  </>
+                  <ThemedText style={styles.exportButtonText}>CSV</ThemedText>
                 )}
               </Pressable>
             </View>
-            <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
-              Export bookmarks and notes
-            </ThemedText>
           </View>
         </View>
 
         <View style={styles.section}>
-          <ThemedText type="h4" style={styles.sectionTitle}>
-            About
+          <ThemedText style={[styles.sectionTitle, { color: theme.secondaryText }]}>
+            Оформление
           </ThemedText>
 
           <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
+            <View style={styles.toggleRow}>
+              <View style={styles.settingLeft}>
+                <Feather name="moon" size={20} color={theme.accent} />
+                <View>
+                  <ThemedText style={styles.settingText}>Тёмная тема</ThemedText>
+                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                    Внешний вид приложения
+                  </ThemedText>
+                </View>
+              </View>
+              <Pressable
+                style={[
+                  styles.themeToggle,
+                  { backgroundColor: isDark ? theme.accent : theme.backgroundSecondary }
+                ]}
+                onPress={handleAppThemeToggle}
+              >
+                <Feather 
+                  name={isDark ? "moon" : "sun"} 
+                  size={16} 
+                  color={isDark ? "#FFFFFF" : theme.text} 
+                />
+              </Pressable>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+
+            <View style={styles.toggleRow}>
+              <View style={styles.settingLeft}>
+                <Feather name="sun" size={20} color={theme.accent} />
+                <View>
+                  <ThemedText style={styles.settingText}>Авто</ThemedText>
+                  <ThemedText style={[styles.settingHint, { color: theme.secondaryText }]}>
+                    По системным настройкам
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={settings.autoAppTheme}
+                onValueChange={handleAutoAppThemeToggle}
+                trackColor={{ false: theme.backgroundTertiary, true: theme.accent }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundDefault }]}>
             <View style={styles.aboutRow}>
-              <ThemedText>Version</ThemedText>
+              <ThemedText style={{ color: theme.secondaryText }}>Версия</ThemedText>
               <ThemedText style={{ color: theme.secondaryText }}>2.0.0</ThemedText>
             </View>
           </View>
@@ -862,202 +739,178 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing["2xl"],
-  },
-  section: {
-    gap: Spacing.md,
-  },
-  sectionTitle: {
-    marginBottom: Spacing.xs,
-  },
-  card: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-  },
-  progressCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.xl,
-  },
-  progressStats: {
-    flex: 1,
+    paddingHorizontal: Spacing.md,
     gap: Spacing.lg,
   },
-  progressStatItem: {
-    alignItems: "flex-start",
+  section: {
+    gap: Spacing.sm,
   },
-  cardLabel: {
-    marginBottom: Spacing.md,
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginLeft: Spacing.xs,
   },
-  settingRow: {
+  card: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+  },
+  progressSection: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: Spacing.lg,
   },
-  settingLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.md,
+  progressInfo: {
     flex: 1,
   },
-  settingLabel: {
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: Spacing.sm,
+    gap: Spacing.lg,
+  },
+  progressItem: {
+    alignItems: "center",
+  },
+  progressLabel: {
+    fontSize: 12,
+  },
+  progressDivider: {
+    width: 1,
+    height: 30,
+  },
+  settingItem: {
+    marginBottom: Spacing.sm,
+  },
+  settingLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  settingText: {
+    fontSize: 15,
     fontWeight: "500",
   },
   settingHint: {
     fontSize: 12,
+    marginTop: 2,
   },
-  slider: {
-    marginTop: Spacing.md,
-    height: 40,
-  },
-  readingModes: {
-    gap: Spacing.md,
-    paddingRight: Spacing.lg,
-  },
-  readingModeCard: {
-    width: 140,
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-  },
-  readingModeName: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  readingModeDesc: {
-    fontSize: 12,
-  },
-  fontOptions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+  horizontalList: {
     gap: Spacing.sm,
   },
-  fontOption: {
+  modeChip: {
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.md,
   },
-  fontOptionText: {
+  modeChipText: {
     fontSize: 14,
     fontWeight: "500",
   },
-  sectionHeader: {
+  subSetting: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(128,128,128,0.2)",
+  },
+  subSettingToggle: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(128,128,128,0.2)",
+  },
+  subSettingLabel: {
+    fontSize: 13,
+  },
+  sliderRow: {
+    gap: Spacing.xs,
+  },
+  sliderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  autoThemeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    gap: 6,
+  sliderValue: {
+    fontSize: 14,
+    fontWeight: "600",
   },
-  autoThemeChipText: {
+  slider: {
+    height: 36,
+    marginHorizontal: -Spacing.xs,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: Spacing.md,
+  },
+  fontGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  fontChip: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  fontChipText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  toggleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  toggleButton: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+  },
+  toggleButtonText: {
     fontSize: 13,
     fontWeight: "500",
   },
-  themeContainer: {
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-  },
-  themeColorGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-start",
-    gap: Spacing.sm,
-  },
-  themeColorItem: {
-    width: "18%",
-    alignItems: "center",
-    marginBottom: Spacing.sm,
-  },
-  themeColorCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  themeColorInner: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    opacity: 0.8,
-  },
-  themeCheckmark: {
-    position: "absolute",
-    bottom: -2,
-    right: -2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  themeColorLabel: {
-    fontSize: 10,
-    textAlign: "center",
-    maxWidth: 60,
-  },
   statsGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-around",
-    gap: Spacing.lg,
   },
   statItem: {
     alignItems: "center",
-    minWidth: 70,
   },
   statLabel: {
     fontSize: 11,
-    marginTop: Spacing.xs,
-    textAlign: "center",
+    marginTop: 2,
   },
   exportButtons: {
     flexDirection: "row",
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   exportButton: {
     flex: 1,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
   },
   exportButtonText: {
     fontWeight: "600",
+    fontSize: 14,
+  },
+  themeToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
   },
   aboutRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  alignmentToggle: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.sm,
-  },
-  alignmentToggleText: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  focusHint: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-  },
-  focusHintText: {
-    fontSize: 12,
   },
 });
